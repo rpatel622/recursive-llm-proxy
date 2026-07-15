@@ -1,6 +1,8 @@
 # Recursive Language Models (RLM)
 
-Python implementation of Recursive Language Models for processing unbounded context lengths.
+Python implementation of Recursive Language Models for efficient long-context processing. Context
+stays in a Python REPL so models can inspect relevant parts and reduce token usage on large-context
+tasks.
 
 **Based on the [RLM paper](https://arxiv.org/abs/2512.24601) by Alex L. Zhang, Tim Kraska, and Omar Khattab** | [Official implementation](https://github.com/alexzhang13/rlm)
 
@@ -10,6 +12,7 @@ Python implementation of Recursive Language Models for processing unbounded cont
 RLM enables language models to process extremely long contexts (100k+ tokens) by:
 - Storing context as a Python variable instead of in the prompt
 - Allowing the LM to recursively explore and partition the context
+- Using local search and computation to reduce model token usage on suitable long-context tasks
 - Avoiding "context rot" (performance degradation with long context)
 
 Instead of this:
@@ -391,7 +394,7 @@ mypy src/rlm
 ruff check src tests benchmarks examples
 
 # Format code
-black src/rlm tests examples
+black src tests examples benchmarks
 
 # Build the source distribution and wheel
 python -m build
@@ -497,4 +500,6 @@ Built using:
 - **arXiv**: https://arxiv.org/abs/2512.24601
 - **Official implementation**: https://github.com/alexzhang13/rlm
 - **LiteLLM Docs**: https://docs.litellm.ai/
+- **Changelog**: https://github.com/grishahq/recursive-llm/blob/main/CHANGELOG.md
+- **Releases**: https://github.com/grishahq/recursive-llm/releases
 - **Issues**: https://github.com/grishahq/recursive-llm/issues

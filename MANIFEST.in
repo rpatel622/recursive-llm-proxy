@@ -1,3 +1,4 @@
+include CHANGELOG.md
 include SECURITY.md
 include BENCHMARK_RESULTS.md
 recursive-include benchmarks *.py

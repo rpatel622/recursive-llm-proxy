@@ -38,14 +38,19 @@ jobs:
           archive = glob.glob("dist/*.tar.gz")[0]
           with tarfile.open(archive) as source:
               names = source.getnames()
-          required = ("/SECURITY.md", "/benchmarks/compare_same_model.py", "/examples/demo.py")
+          required = (
+              "/CHANGELOG.md",
+              "/SECURITY.md",
+              "/benchmarks/compare_same_model.py",
+              "/examples/demo.py",
+          )
           assert all(any(name.endswith(item) for name in names) for item in required)
           PY
       - name: Verify wheel installation
         run: |
           python -m pip uninstall -y recursive-llm
           python -m pip install --no-deps dist/*.whl
-          python -c "from rlm import RLM; assert RLM"
+          python -c "from importlib.metadata import version; import rlm; assert rlm.__version__ == version('recursive-llm')"
 
   test:
     name: Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
