@@ -1,49 +1,58 @@
 # Gradio administration UI
 
-The optional Gradio UI is a small local control surface for one trusted operator. It does not replace the OpenAI-compatible API.
+The optional Gradio UI is a local control surface for one trusted operator. It can configure and launch the proxy process, manage slots, run routed requests, and inspect metrics.
 
 ## Requirements
 
-Current Gradio releases require Python 3.10 or newer. The proxy library itself continues to support Python 3.9.
+Current Gradio releases require Python 3.10 or newer. The core proxy library continues to support Python 3.9.
 
-Install the proxy and UI extras:
+Install and launch:
 
 ```bash
 python -m pip install -e '.[proxy,ui]'
-```
-
-Start the proxy first, then launch the UI:
-
-```bash
-export RLM_PROXY_UI_PROXY_URL='http://127.0.0.1:8000'
-export RLM_PROXY_UI_API_KEY='local-public-key'
-rlm-proxy-ui --host 127.0.0.1 --port 7860
+rlm-proxy-ui
 ```
 
 Open `http://127.0.0.1:7860`.
 
-Command-line values override environment variables:
+No proxy environment variables or command-line arguments are required for this path. The UI itself uses `127.0.0.1:7860` by default. Optional `--host` and `--port` arguments still control where the Gradio UI listens.
 
-```bash
-rlm-proxy-ui \
-  --proxy-url http://127.0.0.1:8000 \
-  --api-key local-public-key \
-  --host 127.0.0.1 \
-  --port 7860
+## Configuration
+
+The Configuration tab sets the child proxy process values:
+
+- proxy bind host and port
+- public bearer token
+- private OpenAI-compatible API base URL and key
+- root and recursive model names
+- maximum RLM depth and iterations
+
+Press **Start / restart proxy** to validate the fields, stop any proxy previously launched by this UI, and start a new Uvicorn child process. The active proxy URL and public key are copied into the connection controls used by the remaining tabs.
+
+The default values expect:
+
+```text
+Gradio UI:    http://127.0.0.1:7860
+Public proxy: http://127.0.0.1:8000
+Private API:  http://127.0.0.1:8080/v1
+Models:       openai/local
 ```
 
-## Configuration tab
+The UI does not start `llama-server`; the configured private API must already be reachable.
 
-The shared connection controls define:
+A proxy launched outside the UI can still be used. Enter its URL and public key under **Active proxy connection**, then press **Check connection**.
 
-- proxy base URL
-- public bearer token
+## Process behavior
 
-The slot catalog tab can load the current normalized catalog, edit it as JSON, validate it, and atomically replace the process-local catalog.
+The UI owns at most one child proxy process. Restarting terminates the previous child before creating another. Stopping the UI process also terminates its operating-system process tree according to normal platform behavior; use **Stop proxy** for an orderly shutdown while the UI remains open.
 
-The UI does not edit the proxy process environment. Private model URL, model names, and RLM resource limits remain startup configuration for `rlm-proxy`.
+Configuration values are passed directly to the child process environment and are not written to disk. The slot catalog and metrics remain process-local and reset when that proxy restarts.
 
-## Test request tab
+## Slot catalog
+
+The Slot catalog tab can load the current normalized catalog, edit it as JSON, validate it, and atomically replace the process-local catalog.
+
+## Test request
 
 The test form sends a normal `/v1/chat/completions` request and exposes:
 
@@ -55,23 +64,12 @@ The test form sends a normal `/v1/chat/completions` request and exposes:
 - routing metadata
 - RLM usage statistics
 
-This is intended for validating routing and context separation before integrating an application.
+## Monitoring
 
-## Monitoring tab
-
-`GET /v1/rlm/metrics` returns process-local counters:
-
-- uptime
-- total, successful, failed, and clarification requests
-- average completed-request latency
-- aggregate prompt and completion tokens
-- slot and workstream counts
-- the 50 most recent request records
-
-The UI displays the same data through a manual refresh button.
+`GET /v1/rlm/metrics` returns process-local counters for uptime, request outcomes, latency, tokens, catalog size, and the 50 most recent request records. The Monitoring tab displays the same data through manual refresh.
 
 Metrics reset when the proxy process restarts. Recent records contain request identifiers, status, routing metadata, latency, token counts, and error text. They do not contain prompts, context, or generated answers.
 
 ## Network exposure
 
-The UI is intended for local use. Bind it to `127.0.0.1` unless another network boundary already controls access. Gradio authentication is not enabled by this fork; the proxy bearer token still protects API requests made by the UI.
+The UI is intended for local use. Bind it to `127.0.0.1` unless another network boundary controls access. Gradio authentication is not enabled by this fork; the proxy bearer token protects API requests made by the UI.
