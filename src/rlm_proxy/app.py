@@ -16,7 +16,8 @@ from rlm.errors import RLMError
 
 from .adapter import forwarded_llm_kwargs, split_query_context
 from .config import Settings, get_settings
-from .models import ChatCompletionRequest, RoutingOptions, SlotCatalog
+from .metrics import metrics
+from .models import ChatCompletionRequest, SlotCatalog
 from .routing import (
     build_routed_context,
     clarification_text,
@@ -106,7 +107,7 @@ async def _single_chunk_stream(payload: Dict[str, Any]) -> AsyncIterator[bytes]:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="recursive-llm OpenAI proxy", version="0.2.0")
+    app = FastAPI(title="recursive-llm OpenAI proxy", version="0.3.0")
 
     @app.get("/healthz")
     async def healthz() -> Dict[str, str]:
@@ -136,11 +137,21 @@ def create_app() -> FastAPI:
         registry.replace(normalized)
         return normalized.model_dump()
 
+    @app.get("/v1/rlm/metrics", dependencies=[Depends(_verify_auth)])
+    async def get_metrics() -> Dict[str, Any]:
+        snapshot = metrics.snapshot()
+        catalog = registry.snapshot()
+        snapshot["slot_count"] = len(catalog.slots)
+        snapshot["workstream_count"] = sum(len(slot.workstreams) for slot in catalog.slots)
+        return snapshot
+
     @app.post("/v1/chat/completions", dependencies=[Depends(_verify_auth)])
     async def chat_completions(
         request: ChatCompletionRequest,
         settings: Settings = Depends(get_settings),
     ) -> Any:
+        started = time.perf_counter()
+        request_id = f"chatcmpl-{uuid.uuid4().hex}"
         request_dict = request.model_dump(exclude_none=True)
         try:
             query, message_context = split_query_context(
@@ -148,6 +159,12 @@ def create_app() -> FastAPI:
                 request.rlm.context if request.rlm else None,
             )
         except ValueError as exc:
+            metrics.record(
+                request_id=request_id,
+                status="error",
+                latency_ms=(time.perf_counter() - started) * 1000,
+                error=str(exc),
+            )
             raise HTTPException(status_code=400, detail={"message": str(exc)}) from exc
 
         options = request.rlm
@@ -166,6 +183,12 @@ def create_app() -> FastAPI:
                     api_key=settings.private_api_key.get_secret_value(),
                 )
             except (ValueError, json.JSONDecodeError) as exc:
+                metrics.record(
+                    request_id=request_id,
+                    status="error",
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    error=str(exc),
+                )
                 raise HTTPException(status_code=400, detail={"message": str(exc)}) from exc
             route_metadata = {
                 "status": decision.status,
@@ -177,11 +200,17 @@ def create_app() -> FastAPI:
             }
             if decision.status == "clarify":
                 payload = _completion_payload(
-                    f"chatcmpl-{uuid.uuid4().hex}",
+                    request_id,
                     request.model,
                     clarification_text(decision),
                     {},
                     route_metadata,
+                )
+                metrics.record(
+                    request_id=request_id,
+                    status="clarify",
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    routing=route_metadata,
                 )
                 if request.stream:
                     return StreamingResponse(
@@ -190,9 +219,7 @@ def create_app() -> FastAPI:
                 return payload
             routed_context = build_routed_context(catalog, decision)
 
-        context = "\n\n".join(
-            part for part in (routed_context, message_context) if part
-        )
+        context = "\n\n".join(part for part in (routed_context, message_context) if part)
         rlm = RLM(
             model=settings.model,
             recursive_model=settings.recursive_model,
@@ -233,17 +260,31 @@ def create_app() -> FastAPI:
         try:
             result = await rlm.acomplete_result(query=query, context=context)
         except RLMError as exc:
+            metrics.record(
+                request_id=request_id,
+                status="error",
+                latency_ms=(time.perf_counter() - started) * 1000,
+                routing=route_metadata,
+                error=str(exc),
+            )
             raise HTTPException(
                 status_code=502,
                 detail={"message": str(exc), "type": type(exc).__name__},
             ) from exc
 
         payload = _completion_payload(
-            f"chatcmpl-{uuid.uuid4().hex}",
+            request_id,
             request.model,
             result.answer,
             result.stats,
             route_metadata,
+        )
+        metrics.record(
+            request_id=request_id,
+            status="ok",
+            latency_ms=(time.perf_counter() - started) * 1000,
+            routing=route_metadata,
+            stats=result.stats,
         )
         if request.stream:
             return StreamingResponse(_single_chunk_stream(payload), media_type="text/event-stream")
