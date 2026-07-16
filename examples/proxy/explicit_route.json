@@ -1,0 +1,19 @@
+{
+  "model": "rlm",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Summarize the unresolved production deployment risks."
+    }
+  ],
+  "rlm": {
+    "routing": {
+      "mode": "explicit",
+      "slot_slug": "engineering",
+      "workstream_slugs": ["deployment-prod"]
+    },
+    "max_depth": 2,
+    "max_total_calls": 24,
+    "max_elapsed_seconds": 300
+  }
+}
