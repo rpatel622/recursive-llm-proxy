@@ -1,505 +1,213 @@
-# Recursive Language Models (RLM)
+# recursive-llm-proxy
 
-Python implementation of Recursive Language Models for efficient long-context processing. Context
-stays in a Python REPL so models can inspect relevant parts and reduce token usage on large-context
-tasks.
+An OpenAI-compatible proxy and local administration UI for Recursive Language Models.
 
-**Based on the [RLM paper](https://arxiv.org/abs/2512.24601) by Alex L. Zhang, Tim Kraska, and Omar Khattab** | [Official implementation](https://github.com/alexzhang13/rlm)
+This repository is a fork of [`grishahq/recursive-llm`](https://github.com/grishahq/recursive-llm). It preserves the upstream Python RLM library and adds a deployable public API, context-slot routing, workstream separation, monitoring, and a self-configuring Gradio control surface.
 
+## What this fork adds
 
-## What is RLM?
-
-RLM enables language models to process extremely long contexts (100k+ tokens) by:
-- Storing context as a Python variable instead of in the prompt
-- Allowing the LM to recursively explore and partition the context
-- Using local search and computation to reduce model token usage on suitable long-context tasks
-- Avoiding "context rot" (performance degradation with long context)
-
-Instead of this:
-```python
-llm.complete(prompt="Summarize this", context=huge_document)  # Context rot!
+```text
+application
+  <-> public OpenAI-compatible API
+  <-> slot/workstream router
+  <-> selected isolated context
+  <-> recursive-llm RLM runtime
+  <-> private OpenAI-compatible API
+  <-> llama-server or another provider
 ```
 
-RLM does this:
-```python
-rlm = RLM(model="gpt-5-mini")
-result = rlm.complete(
-    query="Summarize this",
-    context=huge_document  # Stored as variable, not in prompt
-)
-```
+- OpenAI-compatible `/v1/chat/completions` and `/v1/models`
+- Private OpenAI-compatible model boundary through LiteLLM
+- Isolated context slots with named workstreams
+- Automatic routing with adaptive recent-turn expansion
+- Explicit slot/workstream slug overrides
+- Clarification responses when routing remains ambiguous
+- Process-local request metrics and recent-request monitoring
+- Optional Gradio UI for configuration, proxy lifecycle, slot management, testing, and monitoring
+- The original `rlm.RLM` Python library and recursive REPL execution model
 
-The LM can then peek, search, and recursively process the context adaptively.
+## Status and scope
 
-## Installation
+This fork is intended for a trusted single operator running local or private models. Slots are context-isolation boundaries, not security boundaries. The slot catalog and metrics are currently process-local and reset when the proxy restarts.
 
-**Note:** This package is not yet published to PyPI. Install from source:
+The upstream RLM implementation and paper attribution remain unchanged. Fork-specific proxy and UI code lives under `src/rlm_proxy`.
+
+## Fastest start
+
+Requirements:
+
+- Python 3.10 or newer for the Gradio UI
+- A running private OpenAI-compatible model endpoint, such as `llama-server`
 
 ```bash
-# Clone the repository
-git clone https://github.com/grishahq/recursive-llm.git
-cd recursive-llm
-
-# Install in editable mode
-pip install -e .
-
-# Or install with dev dependencies
-pip install -e ".[dev]"
+git clone https://github.com/rpatel622/recursive-llm-proxy.git
+cd recursive-llm-proxy
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -e '.[proxy,ui]'
+rlm-proxy-ui
 ```
 
-**Future:** Once published to PyPI, you'll be able to install with `pip install recursive-llm`
+Open `http://127.0.0.1:7860`.
 
-## Requirements
+From the UI, configure:
 
-- Python 3.9 or higher
-- An API key for your chosen LLM provider (OpenAI, Anthropic, etc.)
-- Or a local model setup (Ollama, llama.cpp, etc.)
+- public proxy host and port
+- public bearer key
+- private OpenAI-compatible API URL and key
+- root and recursive model names
+- RLM depth and iteration limits
 
-## Quick Start
+Then press **Start / restart proxy**.
+
+Default endpoints:
+
+```text
+Gradio UI:    http://127.0.0.1:7860
+Public proxy: http://127.0.0.1:8000
+Private API:  http://127.0.0.1:8080/v1
+Models:       openai/local
+```
+
+The UI does not launch `llama-server`; the private endpoint must already be running.
+
+## Start without the UI
+
+```bash
+python -m pip install -e '.[proxy]'
+
+export RLM_PROXY_PUBLIC_API_KEY='local-public-key'
+export RLM_PROXY_PRIVATE_API_BASE='http://127.0.0.1:8080/v1'
+export RLM_PROXY_PRIVATE_API_KEY='not-needed'
+export RLM_PROXY_MODEL='openai/local'
+export RLM_PROXY_RECURSIVE_MODEL='openai/local'
+
+rlm-proxy --host 127.0.0.1 --port 8000
+```
+
+## OpenAI client example
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://127.0.0.1:8000/v1",
+    api_key="local-public-key",
+)
+
+response = client.chat.completions.create(
+    model="rlm",
+    messages=[
+        {"role": "user", "content": "What is the production rollback plan?"}
+    ],
+    extra_body={
+        "rlm": {
+            "routing": {
+                "mode": "auto",
+                "initial_turn_count": 4,
+                "max_turn_count": 64,
+                "allow_multi_workstream": True,
+                "allow_cross_slot": False,
+            }
+        }
+    },
+)
+
+print(response.choices[0].message.content)
+```
+
+## Slot and workstream model
+
+A slot is an isolated context domain. A workstream is a separate history inside a slot.
+
+```text
+slot: engineering
+  workstream: deployment-prod
+  workstream: deployment-staging
+
+slot: legal
+  workstream: vendor-contract
+```
+
+Automatic routing can combine multiple workstreams within one slot. Cross-slot routing is disabled by default. Explicit slugs always override automatic routing.
+
+Register or replace the catalog with:
+
+```http
+PUT /v1/rlm/slots
+```
+
+Inspect it with:
+
+```http
+GET /v1/rlm/slots
+```
+
+## Monitoring
+
+The proxy exposes authenticated process-local metrics:
+
+```http
+GET /v1/rlm/metrics
+```
+
+Metrics include request totals, failures, clarifications, latency, token counts, slot/workstream counts, and recent request routing records. Prompts, selected context, and generated answers are not retained in metrics.
+
+## Original Python RLM library
+
+The upstream library remains available directly:
 
 ```python
 from rlm import RLM
 
-def main():
-    # Initialize with any LLM
-    rlm = RLM(model="gpt-5-mini")
-
-    # Process long context
-    result = rlm.complete(
-        query="What are the main themes in this document?",
-        context=long_document,
-    )
-    print(result)
-
-if __name__ == "__main__":
-    main()
-```
-
-RLM uses a spawned worker process for isolated REPL execution. Executable Python scripts must use
-the standard `if __name__ == "__main__":` entry-point guard, as shown above. This is required by
-Python multiprocessing on spawn-based platforms; all repository examples follow this pattern.
-
-### Usage and Cost Statistics
-
-`RLM.stats` aggregates model calls across the complete recursion tree. Token usage comes from
-provider responses, while cost is calculated on a best-effort basis using LiteLLM's model pricing
-metadata.
-
-```python
-rlm = RLM(
-    model="gpt-5-mini",
-    recursive_model="deepseek/deepseek-v4-flash",
-)
-result = rlm.complete(query="Summarize this", context=document)
-
-print(rlm.stats)
-# {
-#     "llm_calls": 11,
-#     "root_calls": 3,
-#     "recursive_calls": 8,
-#     "leaf_calls": 4,
-#     "prompt_tokens": 12500,
-#     "completion_tokens": 3200,
-#     "cached_tokens": 6000,
-#     "estimated_cost_usd": 0.0047,
-#     "by_model": {
-#         "gpt-5-mini": {"calls": 3, ...},
-#         "deepseek/deepseek-v4-flash": {"calls": 8, ...},
-#     },
-# }
-```
-
-Each root completion receives fresh statistics, so they describe one recursion tree rather than
-lifetime usage.
-`estimated_cost_usd` is `None` when LiteLLM has no pricing metadata for any completed call. Compare
-`priced_calls` with `llm_calls` before treating the estimate as the full run cost.
-
-When the same `RLM` instance runs concurrent completions, `RLM.stats` describes whichever root run
-completed most recently. Use the structured result API for exact per-run statistics and trajectory:
-
-```python
-result = rlm.complete_result(query="Summarize this", context=document)
-print(result.answer)
-print(result.stats)
-for event in result.trajectory:
-    print(event.kind, event.depth, event.node_id, event.parent_id)
-```
-
-`acomplete_result` is the asynchronous equivalent. Trajectories include the complete root, child
-RLM, and leaf-call tree. Query, context, model response, code, and output content are represented by
-character counts by default. Set `capture_trajectory_content=True` only when the resulting logs are
-allowed to contain that data. An optional `event_handler` receives events as they occur; handler
-failures do not interrupt model completion.
-
-### Live Model Comparison
-
-The comparison script uses the same model for both root and recursive calls. It runs one small
-recursive smoke test by default and reports latency, calls, tokens, and estimated cost:
-
-```bash
-python benchmarks/compare_same_model.py gpt-5-mini
-python benchmarks/compare_same_model.py deepseek/deepseek-v4-flash
-```
-
-Use repeated runs and save raw records before comparing configurations:
-
-```bash
-python benchmarks/compare_same_model.py gpt-5-mini --full --runs 3 --jsonl results.jsonl
-python benchmarks/compare_same_model.py gpt-5-mini --full --runs 3 --mode direct
-python benchmarks/compare_same_model.py gpt-5-mini --generated-chars 100000 --seed 2026
-```
-
-`--max-depth` compares recursion capabilities; `--mode direct` sends task and context in one normal
-long-context model request. The script reports pass rate, p50/p95 latency, calls, tokens, and
-best-effort cost. Task-specific graders require exact IDs, numeric boundaries, and explicit labeled
-counts rather than accepting arbitrary substrings. Live benchmarks make paid API calls and require
-the corresponding provider keys. `--trace` includes sensitive content-bearing trajectories in the
-JSON output and should be used deliberately.
-
-## API Keys Setup
-
-Copy the example environment file and add keys only for the providers you use:
-
-```bash
-cp .env.example .env
-```
-
-```dotenv
-OPENAI_API_KEY=sk-...
-DEEPSEEK_API_KEY=...
-MOONSHOT_API_KEY=...
-```
-
-Use the LiteLLM provider prefix for non-OpenAI models, for example
-`deepseek/deepseek-v4-flash` or `moonshot/kimi-k2.6`. This lets a hybrid RLM select the correct API
-key for each model automatically.
-
-Or pass directly in code:
-```python
-rlm = RLM(model="gpt-5-mini", api_key="sk-...")
-```
-
-## Supported Models
-
-Works with 100+ LLM providers via LiteLLM:
-
-```python
-# OpenAI
-rlm = RLM(model="gpt-5")
-rlm = RLM(model="gpt-5-mini")
-
-# Anthropic
-rlm = RLM(model="claude-sonnet-4")
-rlm = RLM(model="claude-sonnet-4-20250514")
-
-# Ollama (local)
-rlm = RLM(model="ollama/llama3.2")
-rlm = RLM(model="ollama/mistral")
-
-# llama.cpp (local)
 rlm = RLM(
     model="openai/local",
-    api_base="http://localhost:8000/v1"
+    api_base="http://127.0.0.1:8080/v1",
+    api_key="not-needed",
+    max_depth=2,
 )
 
-# Azure OpenAI
-rlm = RLM(model="azure/gpt-4-deployment")
-
-# And many more via LiteLLM...
-```
-
-## Advanced Usage
-
-### Two Models (Optimize Cost)
-
-Use a cheaper model for recursive calls:
-
-```python
-rlm = RLM(
-    model="gpt-5",              # Root LM (main decisions)
-    recursive_model="gpt-5-mini"  # Recursive calls (cheaper)
+answer = rlm.complete(
+    query="Summarize the unresolved risks",
+    context=long_document,
 )
 ```
 
-### Async API
+RLM keeps long context in a restricted Python REPL and lets the model inspect, search, partition, and recursively process relevant portions.
 
-For better performance with parallel recursive calls:
+## Documentation
 
-```python
-import asyncio
+- [Five-minute quick start](docs/quickstart.md)
+- [Gradio administration UI](docs/admin-ui.md)
+- [Proxy API reference](docs/api.md)
+- [Slot and workstream routing](docs/slot-routing.md)
+- [Architecture](docs/architecture.md)
+- [Detailed proxy reference](docs/openai-proxy.md)
+- [Runnable proxy examples](examples/proxy/README.md)
 
-async def main():
-    rlm = RLM(model="gpt-5-mini")
-    result = await rlm.acomplete(query, context)
-    print(result)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-### Configuration
-
-```python
-rlm = RLM(
-    model="gpt-5-mini",
-    max_depth=2,                 # One child RLM level, then a plain-LM fallback
-    max_iterations=20,           # Maximum REPL iterations per RLM
-    repl_timeout=5,              # Hard timeout for each local Python step
-    max_output_chars=2000,       # Observation truncation limit
-    max_concurrent_subcalls=4,   # Bound batch concurrency
-    max_total_calls=24,          # Exact provider-call cap for the full recursion tree
-    max_total_tokens=100_000,    # Stop after reported usage crosses this value
-    max_total_cost_usd=0.10,     # Stop after reported cost crosses this value
-    max_elapsed_seconds=300,     # Deadline shared by root and child calls
-    # Optional LiteLLM params: temperature, timeout, etc.
-)
-```
-
-Call limits are reserved atomically before provider requests, including batched and recursive
-subcalls. Token and cost limits are evaluated after each response because providers only report
-those values after generation; the crossing response is included in partial statistics attached to
-`BudgetExceededError`. A deadline also bounds in-flight provider requests. All limits are optional
-and are reset for each root completion.
-
-`max_depth` is an explicit constructor option so that runs remain reproducible. It is not read from
-an environment variable by the library. Applications may map their own configuration or environment
-variables to this argument.
-
-| `max_depth` | Behavior |
-| ---: | --- |
-| `0` | Root RLM and REPL only; no LM subcalls |
-| `1` (default) | Root RLM may call a plain LM |
-| `2` | Root RLM may create one child RLM; the child falls back to a plain LM |
-| `n` | Adds one child RLM level for every increment above `1` |
-
-This follows the paper's capability-based depth convention. The root RLM itself is depth `0` and is
-still valid when `max_depth=0`.
-
-### REPL Subcall API
-
-The model can use these functions from its persistent REPL:
-
-```python
-# One plain LM call, without another REPL loop
-llm_query("Extract the date", context[1000:2000])
-
-# Child RLM when depth permits; otherwise one plain-LM boundary call
-rlm_query("Analyze this section", context[2000:8000])
-
-# Ordered parallel calls, limited by max_concurrent_subcalls
-results = llm_query_batched(queries, chunks)
-```
-
-`recursive_llm` remains as a backward-compatible alias for `rlm_query`. A step can finish directly
-through `FINAL(...)`, `FINAL_VAR(...)`, or the mutable `answer` object:
-
-```python
-answer["content"] = result
-answer["ready"] = True
-```
-
-## How It Works
-
-1. **Context is stored as a variable** in a Python REPL environment
-2. **Root LM gets only the query** plus instructions
-3. **LM can explore context** using Python code:
-   ```python
-   # Peek at context
-   context[:1000]
-
-   # Search with regex
-   re.findall(r'pattern', context)
-
-   # Recursive processing with a plain-LM boundary fallback
-   rlm_query("extract dates", context[1000:2000])
-   ```
-4. **Returns the final answer** via a standalone `FINAL("answer")`, `FINAL_VAR(name)`, or `answer`
-   publication
-
-REPL variables persist between iterations. Each local step executes in an isolated subprocess, its
-final expression is evaluated exactly once, print output is isolated per step, and non-terminating
-local code is terminated by `repl_timeout`. Time spent waiting for model subcalls is not charged to
-the local Python timeout. Imports are limited to the already exposed `re`, `json`, `math`,
-`datetime`, and `collections` helpers; arbitrary modules remain blocked.
-
-POSIX deployments may also opt in to worker-process limits:
-
-```python
-rlm = RLM(
-    model="gpt-5-mini",
-    repl_memory_limit_mb=512,
-    repl_cpu_time_limit_seconds=10,
-    repl_max_open_files=64,
-)
-```
-
-These values depend on the runtime and workload, so the library does not guess defaults. A
-configured limit that the platform cannot enforce fails worker startup explicitly. RestrictedPython
-and a subprocess are defense-in-depth controls, not a security boundary for hostile code; read
-[SECURITY.md](SECURITY.md) before processing untrusted prompts or contexts.
-
-## Examples
-
-See the `examples/` directory for complete working examples:
-- `basic_usage.py` - Simple complete with OpenAI
-- `ollama_local.py` - Using Ollama locally
-- `two_models.py` - Cost optimization with two models
-- `long_document.py` - Processing 50k+ token documents
-- `data_extraction.py` - Extract structured data from text
-- `multi_file.py` - Process multiple documents
-- `custom_config.py` - Advanced configuration
-
-Run an example:
-```bash
-# Set your API key first
-export OPENAI_API_KEY="sk-..."
-
-# Run example
-python examples/basic_usage.py
-```
-
-## Performance
-
-### Paper Results
-
-On OOLONG benchmark (132k tokens):
-- GPT-5: baseline
-- RLM(GPT-5-Mini): **33% better than GPT-5** at similar cost
-
-### Reproducible Project Benchmark
-
-`benchmarks/compare_same_model.py` contains deterministic structured contexts with exact expected
-answers. `benchmarks/generated_long_context.py` creates byte-reproducible transaction corpora with
-seed, SHA-256 identity, and a computed answer key. Model outputs remain stochastic, so use `--runs`
-and compare pass rate plus p50/p95 latency before drawing quality conclusions. See
-[BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md) for the latest checked-in live comparison.
-
-## Development
+## Development and verification
 
 ```bash
-# Clone repository
-git clone https://github.com/grishahq/recursive-llm.git
-cd recursive-llm
-
-# Install with dev dependencies
-pip install -e ".[dev]"
-
-# Run tests, branch coverage, and the enforced coverage gate
+python -m pip install -e '.[proxy,ui,dev]'
 pytest
-
-# Type checking
 mypy src/rlm
-
-# Linting
 ruff check src tests benchmarks examples
-
-# Format code
-black src tests examples benchmarks
-
-# Build the source distribution and wheel
+black --check src tests examples benchmarks
 python -m build
 ```
 
-GitHub Actions runs these gates across Python 3.9-3.12 on Linux, plus Python 3.12 on macOS and
-Windows. It also installs the built wheel and runs the offline demo.
+The core library supports Python 3.9 and newer. Current Gradio releases require Python 3.10 or newer.
 
-## Architecture
+## Upstream and attribution
 
-```
-RLM
-├── Core (async completion logic)
-├── Run State (per-invocation budget, usage, and trajectory)
-├── REPL Executor (restricted subprocess, persistent state, hard step timeout)
-├── Prompt Builder (system prompts)
-└── Parser (extract FINAL() answers)
-```
+This fork is based on [`grishahq/recursive-llm`](https://github.com/grishahq/recursive-llm), which implements the Recursive Language Models approach described by Alex L. Zhang, Tim Kraska, and Omar Khattab.
 
-Built on top of LiteLLM for universal LLM support.
+- [RLM paper](https://arxiv.org/abs/2512.24601)
+- [Official research implementation](https://github.com/alexzhang13/rlm)
+- [Upstream Python implementation](https://github.com/grishahq/recursive-llm)
 
-## Limitations
-
-- Python REPL steps are sequential; explicit batched LM/RLM subcalls can run concurrently
-- No prefix caching (future enhancement)
-- Recursion depth is limited (configurable via `max_depth`)
-- No streaming support yet
-
-## Troubleshooting
-
-### "Max iterations exceeded"
-- Increase `max_iterations` parameter
-- Simplify your query
-- Check if the model is getting stuck in a loop
-
-### "API key not found"
-- Copy `.env.example` to `.env` and set the appropriate provider variable:
-  - `OPENAI_API_KEY` for OpenAI
-  - `DEEPSEEK_API_KEY` for DeepSeek
-  - `MOONSHOT_API_KEY` for Kimi
-- Or pass `api_key` parameter to RLM constructor
-
-### "Model not found"
-- Check model name format for your provider
-- See LiteLLM docs: https://docs.litellm.ai/docs/providers
-
-### Using Ollama
-- Make sure Ollama is running: `ollama serve`
-- Pull a model first: `ollama pull llama3.2`
-- Use model format: `ollama/model-name`
-
-## Contributing
-
-Contributions welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new features
-4. Ensure all tests pass (`pytest tests/`)
-5. Follow code style (use `black` and `ruff`)
-6. Submit a pull request
-
-## Citation
-
-This implementation is based on the RLM paper by Alex L. Zhang, Tim Kraska, and Omar Khattab.
-
-**To cite this implementation:**
-```bibtex
-@software{rlm_python,
-  title = {recursive-llm: Python Implementation of Recursive Language Models},
-  author = {Gvadzabia, Grisha},
-  year = {2025},
-  url = {https://github.com/grishahq/recursive-llm}
-}
-```
-
-**To cite the original paper:**
-```bibtex
-@misc{zhang2025rlm,
-  title = {Recursive Language Models},
-  author = {Zhang, Alex L. and Kraska, Tim and Khattab, Omar},
-  year = {2025},
-  url = {https://arxiv.org/abs/2512.24601},
-  eprint = {2512.24601},
-  archivePrefix = {arXiv}
-}
-```
+Fork-specific proxy and UI changes are maintained in this repository. Upstream library issues should be checked against the upstream project before filing here.
 
 ## License
 
-MIT License - see LICENSE file for details
-
-## Acknowledgments
-
-Based on the Recursive Language Models paper by Alex L. Zhang, Tim Kraska, and Omar Khattab.
-
-Built using:
-- LiteLLM for universal LLM API support
-- RestrictedPython for restricted code execution
-
-## Links
-
-- **Paper**: https://alexzhang13.github.io/blog/2025/rlm/
-- **arXiv**: https://arxiv.org/abs/2512.24601
-- **Official implementation**: https://github.com/alexzhang13/rlm
-- **LiteLLM Docs**: https://docs.litellm.ai/
-- **Changelog**: https://github.com/grishahq/recursive-llm/blob/main/CHANGELOG.md
-- **Releases**: https://github.com/grishahq/recursive-llm/releases
-- **Issues**: https://github.com/grishahq/recursive-llm/issues
+MIT. See [LICENSE](LICENSE).
