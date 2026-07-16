@@ -1,0 +1,21 @@
+{
+  "model": "rlm",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the production rollback trigger?"
+    }
+  ],
+  "rlm": {
+    "routing": {
+      "mode": "auto",
+      "initial_turn_count": 2,
+      "max_turn_count": 32,
+      "allow_multi_workstream": true,
+      "allow_cross_slot": false
+    },
+    "max_depth": 2,
+    "max_total_calls": 24,
+    "max_elapsed_seconds": 300
+  }
+}
