@@ -6,7 +6,7 @@ import json
 import secrets
 import time
 import uuid
-from typing import Any, AsyncIterator, Dict
+from typing import Any, AsyncIterator, Dict, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -20,7 +20,7 @@ from .models import ChatCompletionRequest
 
 
 def _verify_auth(
-    authorization: str | None = Header(default=None),
+    authorization: Optional[str] = Header(default=None),
     settings: Settings = Depends(get_settings),
 ) -> None:
     expected_secret = settings.public_api_key
