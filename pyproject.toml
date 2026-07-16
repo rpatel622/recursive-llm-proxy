@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "recursive-llm"
 version = "0.2.0"
-description = "Recursive Language Models for efficient long-context processing"
+description = "OpenAI-compatible Recursive Language Model proxy with context-slot routing and a local Gradio administration UI"
 authors = [{name = "Grigori Gvadzabia"}]
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
-keywords = ["llm", "ai", "nlp", "recursive", "language-models"]
+keywords = ["llm", "ai", "nlp", "recursive", "language-models", "openai-proxy", "llama-cpp", "gradio"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -49,11 +49,12 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/grishahq/recursive-llm"
-Documentation = "https://github.com/grishahq/recursive-llm"
-Repository = "https://github.com/grishahq/recursive-llm"
-Issues = "https://github.com/grishahq/recursive-llm/issues"
-Changelog = "https://github.com/grishahq/recursive-llm/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/rpatel622/recursive-llm-proxy"
+Documentation = "https://github.com/rpatel622/recursive-llm-proxy/tree/main/docs"
+Repository = "https://github.com/rpatel622/recursive-llm-proxy"
+Issues = "https://github.com/rpatel622/recursive-llm-proxy/issues"
+Upstream = "https://github.com/grishahq/recursive-llm"
+Changelog = "https://github.com/rpatel622/recursive-llm-proxy/blob/main/CHANGELOG.md"
 
 [project.scripts]
 rlm-proxy = "rlm_proxy.cli:main"
