@@ -113,24 +113,24 @@ pip install openai
 RLM_PROXY_API_KEY='local-public-key' python examples/proxy/openai_sdk.py
 ```
 
-## 8. Launch the optional Gradio UI
+## 8. Launch the self-configuring Gradio UI
 
 Current Gradio releases require Python 3.10 or newer.
 
 ```bash
-pip install -e '.[proxy,ui]'
-RLM_PROXY_UI_PROXY_URL='http://127.0.0.1:8000' \
-RLM_PROXY_UI_API_KEY='local-public-key' \
-rlm-proxy-ui --host 127.0.0.1 --port 7860
+python -m pip install -e '.[proxy,ui]'
+rlm-proxy-ui
 ```
 
-Open `http://127.0.0.1:7860`. The UI can edit the slot catalog, run routed test requests, and inspect process metrics and recent request records.
+Open `http://127.0.0.1:7860`. Configure the proxy host and port, private API URL and key, public key, model names, and RLM limits in the UI. Press **Start / restart proxy**; no proxy environment variables are required.
+
+The UI does not launch `llama-server`, so the private OpenAI-compatible endpoint must already be running.
 
 ## Verification
 
 ```bash
-pip install -e '.[proxy,dev]'
-pytest tests/test_proxy_adapter.py tests/test_proxy_app.py tests/test_proxy_routing.py tests/test_proxy_metrics.py
+pip install -e '.[proxy,ui,dev]'
+pytest tests/test_proxy_adapter.py tests/test_proxy_app.py tests/test_proxy_routing.py tests/test_proxy_metrics.py tests/test_managed_proxy.py
 ```
 
 See also:
