@@ -16,7 +16,6 @@ application
 ```bash
 git clone https://github.com/rpatel622/recursive-llm-proxy.git
 cd recursive-llm-proxy
-git switch agent/openai-rlm-proxy
 python -m venv .venv
 . .venv/bin/activate
 pip install -e '.[proxy]'
@@ -114,15 +113,29 @@ pip install openai
 RLM_PROXY_API_KEY='local-public-key' python examples/proxy/openai_sdk.py
 ```
 
+## 8. Launch the self-configuring Gradio UI
+
+Current Gradio releases require Python 3.10 or newer.
+
+```bash
+python -m pip install -e '.[proxy,ui]'
+rlm-proxy-ui
+```
+
+Open `http://127.0.0.1:7860`. Configure the proxy host and port, private API URL and key, public key, model names, and RLM limits in the UI. Press **Start / restart proxy**; no proxy environment variables are required.
+
+The UI does not launch `llama-server`, so the private OpenAI-compatible endpoint must already be running.
+
 ## Verification
 
 ```bash
-pip install -e '.[proxy,dev]'
-pytest tests/test_proxy_adapter.py tests/test_proxy_app.py tests/test_proxy_routing.py
+pip install -e '.[proxy,ui,dev]'
+pytest tests/test_proxy_adapter.py tests/test_proxy_app.py tests/test_proxy_routing.py tests/test_proxy_metrics.py tests/test_managed_proxy.py
 ```
 
 See also:
 
+- [Gradio administration UI](admin-ui.md)
 - [Slot routing](slot-routing.md)
 - [API reference](api.md)
 - [Architecture](architecture.md)

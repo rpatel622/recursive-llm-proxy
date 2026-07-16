@@ -53,6 +53,30 @@ Names and descriptions may be omitted. Slugs are required and validated. Duplica
 
 Returns the normalized current catalog. Turn histories may be represented according to the server response model; do not treat this endpoint as durable storage.
 
+## `GET /v1/rlm/metrics`
+
+Returns process-local monitoring counters and the 50 most recent completion records.
+
+```json
+{
+  "started_at": 1784221200,
+  "uptime_seconds": 3600,
+  "total_requests": 14,
+  "successful_requests": 11,
+  "failed_requests": 1,
+  "clarifications": 2,
+  "average_latency_ms": 842.31,
+  "prompt_tokens": 42100,
+  "completion_tokens": 3800,
+  "total_tokens": 45900,
+  "slot_count": 2,
+  "workstream_count": 5,
+  "recent": []
+}
+```
+
+Recent records include request ID, timestamp, status, latency, routing metadata, token counts, and error text. Prompt, context, and answer content are not recorded. Metrics reset when the process restarts.
+
 ## `POST /v1/chat/completions`
 
 Accepts an OpenAI-compatible chat-completion request plus an optional `rlm` extension.
