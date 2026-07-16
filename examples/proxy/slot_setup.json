@@ -1,0 +1,53 @@
+{
+  "slots": [
+    {
+      "slug": "engineering",
+      "name": "Engineering",
+      "description": "Engineering implementation, release, and operations work",
+      "workstreams": [
+        {
+          "slug": "deployment-prod",
+          "name": "Production Deployment",
+          "description": "Production rollout, monitoring, and rollback planning",
+          "turns": [
+            {
+              "role": "user",
+              "content": "Use a blue-green production deployment and preserve the previous environment until validation completes."
+            },
+            {
+              "role": "assistant",
+              "content": "The rollback trigger is two consecutive failed health-check windows."
+            }
+          ]
+        },
+        {
+          "slug": "deployment-staging",
+          "name": "Staging Deployment",
+          "description": "Staging validation before production release",
+          "turns": [
+            {
+              "role": "user",
+              "content": "Run schema compatibility and smoke tests in staging before promotion."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "legal",
+      "name": "Legal",
+      "description": "Contracts and policy review",
+      "workstreams": [
+        {
+          "slug": "vendor-contract",
+          "turns": [
+            {
+              "role": "user",
+              "content": "The vendor agreement requires thirty days notice for termination."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
