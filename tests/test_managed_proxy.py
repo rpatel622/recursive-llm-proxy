@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
 from rlm_proxy.managed_proxy import ManagedProxy, ProxyLaunchConfig
