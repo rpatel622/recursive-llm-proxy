@@ -16,7 +16,14 @@ from rlm.errors import RLMError
 
 from .adapter import forwarded_llm_kwargs, split_query_context
 from .config import Settings, get_settings
-from .models import ChatCompletionRequest
+from .models import ChatCompletionRequest, RoutingOptions, SlotCatalog
+from .routing import (
+    build_routed_context,
+    clarification_text,
+    normalized_catalog,
+    registry,
+    resolve_route,
+)
 
 
 def _verify_auth(
@@ -45,8 +52,15 @@ def _usage(stats: Dict[str, Any]) -> Dict[str, int]:
 
 
 def _completion_payload(
-    request_id: str, model: str, answer: str, stats: Dict[str, Any]
+    request_id: str,
+    model: str,
+    answer: str,
+    stats: Dict[str, Any],
+    routing: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+    metadata: Dict[str, Any] = {"stats": stats}
+    if routing is not None:
+        metadata["routing"] = routing
     return {
         "id": request_id,
         "object": "chat.completion",
@@ -60,7 +74,7 @@ def _completion_payload(
             }
         ],
         "usage": _usage(stats),
-        "rlm": {"stats": stats},
+        "rlm": metadata,
     }
 
 
@@ -92,7 +106,7 @@ async def _single_chunk_stream(payload: Dict[str, Any]) -> AsyncIterator[bytes]:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="recursive-llm OpenAI proxy", version="0.1.0")
+    app = FastAPI(title="recursive-llm OpenAI proxy", version="0.2.0")
 
     @app.get("/healthz")
     async def healthz() -> Dict[str, str]:
@@ -112,6 +126,16 @@ def create_app() -> FastAPI:
             ],
         }
 
+    @app.get("/v1/rlm/slots", dependencies=[Depends(_verify_auth)])
+    async def get_slots() -> Dict[str, Any]:
+        return normalized_catalog(registry.snapshot()).model_dump()
+
+    @app.put("/v1/rlm/slots", dependencies=[Depends(_verify_auth)])
+    async def replace_slots(catalog: SlotCatalog) -> Dict[str, Any]:
+        normalized = normalized_catalog(catalog)
+        registry.replace(normalized)
+        return normalized.model_dump()
+
     @app.post("/v1/chat/completions", dependencies=[Depends(_verify_auth)])
     async def chat_completions(
         request: ChatCompletionRequest,
@@ -119,7 +143,7 @@ def create_app() -> FastAPI:
     ) -> Any:
         request_dict = request.model_dump(exclude_none=True)
         try:
-            query, context = split_query_context(
+            query, message_context = split_query_context(
                 request.messages,
                 request.rlm.context if request.rlm else None,
             )
@@ -127,6 +151,48 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail={"message": str(exc)}) from exc
 
         options = request.rlm
+        route_metadata: Optional[Dict[str, Any]] = None
+        routed_context = ""
+        routing_options = options.routing if options and options.routing else None
+        if routing_options is not None:
+            catalog = registry.snapshot()
+            try:
+                decision = await resolve_route(
+                    query=query,
+                    catalog=catalog,
+                    options=routing_options,
+                    model=settings.model,
+                    api_base=settings.private_api_base.rstrip("/"),
+                    api_key=settings.private_api_key.get_secret_value(),
+                )
+            except (ValueError, json.JSONDecodeError) as exc:
+                raise HTTPException(status_code=400, detail={"message": str(exc)}) from exc
+            route_metadata = {
+                "status": decision.status,
+                "slot_slug": decision.slot_slug,
+                "workstream_slugs": list(decision.workstream_slugs),
+                "loaded_turn_count": decision.loaded_turn_count,
+                "candidate_slugs": [item["slug"] for item in decision.candidates],
+                "reason": decision.reason,
+            }
+            if decision.status == "clarify":
+                payload = _completion_payload(
+                    f"chatcmpl-{uuid.uuid4().hex}",
+                    request.model,
+                    clarification_text(decision),
+                    {},
+                    route_metadata,
+                )
+                if request.stream:
+                    return StreamingResponse(
+                        _single_chunk_stream(payload), media_type="text/event-stream"
+                    )
+                return payload
+            routed_context = build_routed_context(catalog, decision)
+
+        context = "\n\n".join(
+            part for part in (routed_context, message_context) if part
+        )
         rlm = RLM(
             model=settings.model,
             recursive_model=settings.recursive_model,
@@ -172,8 +238,13 @@ def create_app() -> FastAPI:
                 detail={"message": str(exc), "type": type(exc).__name__},
             ) from exc
 
-        request_id = f"chatcmpl-{uuid.uuid4().hex}"
-        payload = _completion_payload(request_id, request.model, result.answer, result.stats)
+        payload = _completion_payload(
+            f"chatcmpl-{uuid.uuid4().hex}",
+            request.model,
+            result.answer,
+            result.stats,
+            route_metadata,
+        )
         if request.stream:
             return StreamingResponse(_single_chunk_stream(payload), media_type="text/event-stream")
         return payload
