@@ -78,11 +78,31 @@ class RoutingOptions(BaseModel):
         return self
 
 
+class IngestionOptions(BaseModel):
+    """Controls rolling preprocessing of oversized final user messages."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    threshold_chars: int = Field(default=24000, gt=0)
+    window_chars: int = Field(default=12000, gt=0)
+    overlap_chars: int = Field(default=800, ge=0)
+    max_windows: int = Field(default=128, gt=0)
+    metadata_chars: int = Field(default=4000, gt=0)
+
+    @model_validator(mode="after")
+    def validate_window(self) -> "IngestionOptions":
+        if self.overlap_chars >= self.window_chars:
+            raise ValueError("overlap_chars must be smaller than window_chars")
+        return self
+
+
 class RLMOptions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     context: Optional[str] = None
     routing: Optional[RoutingOptions] = None
+    ingestion: Optional[IngestionOptions] = None
     max_depth: Optional[int] = Field(default=None, ge=0)
     max_iterations: Optional[int] = Field(default=None, gt=0)
     max_total_calls: Optional[int] = Field(default=None, gt=0)
