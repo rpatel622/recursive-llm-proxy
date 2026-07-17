@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Download one GitHub release asset selected by ordered filename patterns."""
+"""Download one GitHub release asset selected by ordered filename patterns.
+
+Each pattern may contain ``+``-separated required substrings. For example,
+``cpython-3.11+x86_64-pc-windows-msvc+install_only`` matches an asset whose
+filename contains all three fragments, regardless of order or case.
+"""
 
 from __future__ import annotations
 
@@ -36,24 +41,31 @@ def _download(url: str, destination: Path) -> None:
                 output.write(chunk)
 
 
+def _matches(name: str, expression: str) -> bool:
+    lowered = name.lower()
+    required = [part.strip().lower() for part in expression.split("+") if part.strip()]
+    return bool(required) and all(part in lowered for part in required)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("repository", help="GitHub repository in owner/name form")
     parser.add_argument("destination", type=Path)
-    parser.add_argument("patterns", nargs="+", help="Ordered case-insensitive filename substrings")
+    parser.add_argument("patterns", nargs="+", help="Ordered filename expressions")
     parser.add_argument("--tag", help="Specific release tag; defaults to latest")
     args = parser.parse_args()
 
-    if args.tag:
-        endpoint = f"https://api.github.com/repos/{args.repository}/releases/tags/{args.tag}"
-    else:
-        endpoint = f"https://api.github.com/repos/{args.repository}/releases/latest"
+    endpoint = (
+        f"https://api.github.com/repos/{args.repository}/releases/tags/{args.tag}"
+        if args.tag
+        else f"https://api.github.com/repos/{args.repository}/releases/latest"
+    )
     release = _request(endpoint)
     assets = release.get("assets", [])
 
     selected = None
     for pattern in args.patterns:
-        matches = [asset for asset in assets if pattern.lower() in asset.get("name", "").lower()]
+        matches = [asset for asset in assets if _matches(asset.get("name", ""), pattern)]
         if len(matches) == 1:
             selected = matches[0]
             break
@@ -70,13 +82,16 @@ def main() -> int:
 
     print(f"Downloading {selected['name']} from release {release.get('tag_name')}")
     _download(selected["browser_download_url"], args.destination)
-    metadata = {
-        "repository": args.repository,
-        "release": release.get("tag_name"),
-        "asset": selected["name"],
-    }
     args.destination.with_suffix(args.destination.suffix + ".json").write_text(
-        json.dumps(metadata, indent=2), encoding="utf-8"
+        json.dumps(
+            {
+                "repository": args.repository,
+                "release": release.get("tag_name"),
+                "asset": selected["name"],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
     )
     return 0
 
