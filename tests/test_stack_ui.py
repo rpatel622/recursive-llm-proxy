@@ -57,6 +57,17 @@ def _arguments(tmp_path: Any) -> tuple[Any, ...]:
     )
 
 
+def test_default_llama_binary_uses_bundle_environment(monkeypatch: Any, tmp_path: Any) -> None:
+    binary = tmp_path / "llama-server"
+    monkeypatch.setenv("RLM_BUNDLED_LLAMA_SERVER", str(binary))
+    assert stack_ui.default_llama_binary() == str(binary)
+
+
+def test_default_llama_binary_falls_back_to_path(monkeypatch: Any) -> None:
+    monkeypatch.delenv("RLM_BUNDLED_LLAMA_SERVER", raising=False)
+    assert stack_ui.default_llama_binary() == "llama-server"
+
+
 def test_complete_stack_starts_in_dependency_order(monkeypatch: Any, tmp_path: Any) -> None:
     events: List[str] = []
     llama = FakeManager("llama", events)
