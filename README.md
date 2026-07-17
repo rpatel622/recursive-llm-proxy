@@ -11,11 +11,13 @@ You need only:
 1. A Local RLM Cowork release bundle for your operating system.
 2. A `.gguf` model that fits your computer.
 
-Download and fully extract one of these release files:
+Download and fully extract one of these release files from the repository's **Releases** page:
 
 - `local-rlm-cowork-windows-x64.zip`
 - `local-rlm-cowork-macos-x64.zip`
 - `local-rlm-cowork-linux-x64.tar.gz`
+
+The **Continuous build** prerelease is rebuilt automatically from the latest successful `main` commit. Numbered `v*` releases are permanent snapshots intended for normal distribution.
 
 Do not run the launcher from inside the archive.
 
@@ -89,67 +91,27 @@ Each platform archive contains:
 - Native no-terminal launchers
 - A manifest recording exact Python, llama.cpp, application, platform, and commit versions
 
-The launcher verifies imports before startup. **Repair installation** reinstalls the application from the local wheelhouse without downloading packages or changing user data.
+## GitHub Packages
 
-## What is not bundled
-
-GGUF model weights are not included because they are large and users need different sizes and licenses. Download a model separately and choose it in the control screen.
-
-Current bundles target Windows x64, Linux x64, and macOS x64. Apple Silicon can use the macOS x64 bundle through Rosetta while a native arm64 bundle is being validated.
-
-## Model sizing
-
-Conservative starting points:
-
-| Computer memory | Suggested model |
-|---|---|
-| 8 GB | 1B–3B, Q4 |
-| 16 GB | 3B–8B, Q4 |
-| 32 GB | 8B–14B, Q4 or Q5 |
-| 64 GB+ | Larger models depending on GPU memory |
-
-Context size, other applications, and GPU memory also affect what will run comfortably.
-
-## Recommended defaults
+The repository also publishes the proxy-only container image to GitHub Container Registry:
 
 ```text
-K cache:       q8_0
-V cache:       q4_0
-Parallel:      1
-GPU layers:    all
-Context size:  16384
+ghcr.io/rpatel622/recursive-llm-proxy:latest
 ```
 
-Advanced controls remain available when hardware-specific tuning is needed.
+The container package is for server and developer deployments. Desktop users should download the operating-system bundles from **Releases** instead.
 
-## Large documents and pasted conversations
+## Repair and updates
 
-Open WebUI Knowledge is suited to reusable document collections. Very large one-off messages can be pasted directly into chat. The proxy splits oversized input at natural boundaries, builds semantic metadata, extracts the actual request, and keeps the original text available for targeted inspection.
+Use **Repair installation** in the launcher to reinstall the bundled application from the local wheelhouse without downloading dependencies. Repair preserves models, Open WebUI data, conversations, knowledge collections, and logs.
 
-## Recovery
+Release bundles are immutable. To update, download and extract a newer bundle. Persistent user data remains under the normal user-data directory.
 
-The launcher writes diagnostics to:
+## Advanced use
 
-```text
-~/.recursive-llm/logs/launcher.log
-```
+Source installation, CLI startup, OpenAI-compatible API use, context routing, workstreams, and development instructions remain available in the documentation:
 
-Use these controls without opening a terminal:
-
-- **Repair installation** reinstalls bundled packages from local files.
-- **Open diagnostics** opens the log folder.
-- **Open browser** reopens the control screen.
-- **Stop** stops the launcher-managed control process.
-
-A missing runtime, missing repair wheelhouse, or incomplete archive produces a visible error directing the user to download and fully extract a fresh bundle.
-
-## Source and developer installation
-
-Source checkouts remain supported. When no bundle manifest is present, the graphical launcher creates and manages `~/.recursive-llm/app-venv`, then installs `.[proxy,ui,cowork]`. This fallback requires Python 3.11 or newer.
-
-Advanced documentation:
-
-- [Bundled installation and repair](docs/bundled-installation.md)
+- [Bundled installation and release production](docs/bundled-installation.md)
 - [Browser cowork interface](docs/cowork.md)
 - [Proxy API reference](docs/api.md)
 - [Rolling ingestion](docs/rolling-ingestion.md)
@@ -159,7 +121,7 @@ Advanced documentation:
 
 ## Project status
 
-This is an accessibility-focused local AI project under active development. Bundles are produced by GitHub Actions and require native testing before release publication. The application is intended for one trusted local operator. Workspaces organize context; they are not security boundaries.
+This is an accessibility-focused local AI project under active development. The application is intended for one trusted local operator. Workspaces and slots organize context; they are not security boundaries.
 
 ## Upstream and license
 
