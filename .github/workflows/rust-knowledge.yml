@@ -1,0 +1,35 @@
+name: Rust knowledge core
+
+on:
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust/**"
+      - ".github/workflows/rust-knowledge.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust/**"
+      - ".github/workflows/rust-knowledge.yml"
+
+concurrency:
+  group: rust-knowledge-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.85"
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
+      - run: cargo test --workspace --no-default-features
+      - run: cargo metadata --format-version 1 --no-deps --features full
