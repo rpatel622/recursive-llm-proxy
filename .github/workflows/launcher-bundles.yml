@@ -33,18 +33,21 @@ jobs:
             python_asset: cpython-3.11+x86_64-pc-windows-msvc+install_only
             python_exe: runtime/python/python.exe
             llama_asset: bin-win-vulkan-x64+.zip
+            llama_archive_ext: zip
             archive_ext: zip
           - runner: ubuntu-22.04
             bundle_name: linux-x64
             python_asset: cpython-3.11+x86_64-unknown-linux-gnu+install_only
             python_exe: runtime/python/bin/python3
-            llama_asset: bin-ubuntu-vulkan-x64+.zip
+            llama_asset: bin-ubuntu-vulkan-x64+.tar.gz
+            llama_archive_ext: tar.gz
             archive_ext: tar.gz
           - runner: macos-13
             bundle_name: macos-x64
             python_asset: cpython-3.11+x86_64-apple-darwin+install_only
             python_exe: runtime/python/bin/python3
-            llama_asset: bin-macos-x64+.zip
+            llama_asset: bin-macos-x64+.tar.gz
+            llama_archive_ext: tar.gz
             archive_ext: zip
 
     runs-on: ${{ matrix.runner }}
@@ -87,15 +90,21 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          LLAMA_ARCHIVE="llama-runtime.${{ matrix.llama_archive_ext }}"
           python scripts/select_github_release_asset.py \
             ggml-org/llama.cpp \
-            llama-runtime.zip \
+            "$LLAMA_ARCHIVE" \
             "${{ matrix.llama_asset }}"
-          python - <<'PY'
-          import zipfile
-          zipfile.ZipFile("llama-runtime.zip").extractall("dist/local-rlm-cowork/runtime/llama")
+          python - "$LLAMA_ARCHIVE" <<'PY'
+          import pathlib
+          import shutil
+          import sys
+
+          archive = pathlib.Path(sys.argv[1])
+          destination = pathlib.Path("dist/local-rlm-cowork/runtime/llama")
+          shutil.unpack_archive(str(archive), str(destination))
           PY
-          cp llama-runtime.zip.json "$BUNDLE_ROOT/runtime/llama-release.json"
+          cp "$LLAMA_ARCHIVE.json" "$BUNDLE_ROOT/runtime/llama-release.json"
 
       - name: Build offline wheelhouse and install application
         shell: bash
