@@ -3,7 +3,12 @@
 
 Each pattern may contain ``+``-separated required substrings. For example,
 ``cpython-3.11+x86_64-pc-windows-msvc+install_only`` matches an asset whose
-filename contains all three fragments, regardless of order or case.
+filename contains all fragments, regardless of order or case.
+
+When multiple assets match, the resolver ranks them deterministically. Exact
+requested variants are preferred, while unrequested variants such as
+``install_only_stripped`` are treated as fallbacks rather than causing the
+workflow to fail.
 """
 
 from __future__ import annotations
@@ -14,6 +19,7 @@ import os
 import sys
 import urllib.request
 from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 def _request(url: str) -> dict:
@@ -41,10 +47,46 @@ def _download(url: str, destination: Path) -> None:
                 output.write(chunk)
 
 
+def _parts(expression: str) -> List[str]:
+    return [part.strip().lower() for part in expression.split("+") if part.strip()]
+
+
 def _matches(name: str, expression: str) -> bool:
     lowered = name.lower()
-    required = [part.strip().lower() for part in expression.split("+") if part.strip()]
+    required = _parts(expression)
     return bool(required) and all(part in lowered for part in required)
+
+
+def _variant_penalty(name: str, required: Sequence[str]) -> int:
+    """Penalize common variants unless the expression explicitly requests them."""
+
+    lowered = name.lower()
+    requested = " ".join(required)
+    penalty = 0
+    for marker in ("stripped", "debug", "pdb", "freethreaded"):
+        if marker in lowered and marker not in requested:
+            penalty += 100
+    return penalty
+
+
+def _rank(name: str, expression: str) -> Tuple[int, int, str]:
+    """Return a stable rank where lower values are preferred."""
+
+    required = _parts(expression)
+    lowered = name.lower()
+    unmatched_length = len(lowered) - sum(len(part) for part in required)
+    return (_variant_penalty(lowered, required), unmatched_length, lowered)
+
+
+def _select_asset(assets: Iterable[Dict[str, Any]], patterns: Sequence[str]) -> Optional[Dict[str, Any]]:
+    """Select the best asset using pattern order followed by deterministic ranking."""
+
+    asset_list = list(assets)
+    for pattern in patterns:
+        matches = [asset for asset in asset_list if _matches(str(asset.get("name", "")), pattern)]
+        if matches:
+            return min(matches, key=lambda asset: _rank(str(asset.get("name", "")), pattern))
+    return None
 
 
 def main() -> int:
@@ -62,16 +104,7 @@ def main() -> int:
     )
     release = _request(endpoint)
     assets = release.get("assets", [])
-
-    selected = None
-    for pattern in args.patterns:
-        matches = [asset for asset in assets if _matches(asset.get("name", ""), pattern)]
-        if len(matches) == 1:
-            selected = matches[0]
-            break
-        if len(matches) > 1:
-            names = ", ".join(asset["name"] for asset in matches)
-            raise SystemExit(f"Pattern {pattern!r} matched multiple assets: {names}")
+    selected = _select_asset(assets, args.patterns)
 
     if selected is None:
         available = "\n".join(f"- {asset.get('name')}" for asset in assets)
