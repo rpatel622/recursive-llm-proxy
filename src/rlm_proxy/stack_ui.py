@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, Tuple
 
 from .managed_llama import LlamaServerLaunchConfig, managed_llama_server
 from .managed_proxy import ProxyLaunchConfig, managed_proxy
 from .managed_webui import WebUILaunchConfig, managed_webui
+
+
+def default_llama_binary() -> str:
+    """Prefer the release-bundled llama-server while preserving source installs."""
+    return os.getenv("RLM_BUNDLED_LLAMA_SERVER", "llama-server")
 
 
 def stack_status() -> Dict[str, Any]:
@@ -38,10 +44,8 @@ def start_complete_stack(
     auth_enabled: bool,
     open_browser: bool,
 ) -> Tuple[str, str, str, str, Dict[str, Any]]:
-    """Start all local services in dependency order and expose useful URLs."""
-
     llama_config = LlamaServerLaunchConfig(
-        binary=llama_binary.strip() or "llama-server",
+        binary=llama_binary.strip() or default_llama_binary(),
         model_path=model_path.strip(),
         host=llama_host.strip(),
         port=int(llama_port),
@@ -79,13 +83,12 @@ def start_complete_stack(
         managed_llama_server.start(llama_config)
         managed_proxy.start(proxy_config)
         managed_webui.start(webui_config)
-        details = stack_status()
         return (
             f"Complete local stack is running. Open {webui_config.url}",
             proxy_config.url,
             proxy_config.public_api_key,
             webui_config.url,
-            details,
+            stack_status(),
         )
     except Exception as exc:
         managed_webui.stop()
@@ -101,8 +104,6 @@ def start_complete_stack(
 
 
 def stop_complete_stack() -> Tuple[str, Dict[str, Any]]:
-    """Stop all managed services in reverse dependency order."""
-
     errors = []
     for name, manager in (
         ("Open WebUI", managed_webui),
@@ -111,7 +112,7 @@ def stop_complete_stack() -> Tuple[str, Dict[str, Any]]:
     ):
         try:
             manager.stop()
-        except Exception as exc:  # pragma: no cover - defensive process cleanup
+        except Exception as exc:  # pragma: no cover
             errors.append(f"{name}: {exc}")
     if errors:
         return "Stack stopped with errors: " + "; ".join(errors), stack_status()
@@ -131,23 +132,29 @@ def refresh_stack_status() -> Tuple[str, Dict[str, Any]]:
 
 
 def build_stack_tab(gr: Any, proxy_url: Any, api_key: Any) -> None:
-    """Add a complete-stack setup tab to an existing Gradio Blocks application."""
-
     with gr.Tab("One-click local stack"):
-        gr.Markdown(
-            "Select a GGUF model and press **Start complete stack**. The UI starts "
-            "llama-server, the RLM proxy, and Open WebUI in the correct order."
-        )
+        bundled = os.getenv("RLM_BUNDLED_LLAMA_SERVER")
+        if bundled:
+            gr.Markdown(
+                "Choose a GGUF model and press **Start complete stack**. llama.cpp is included "
+                "in this release bundle."
+            )
+        else:
+            gr.Markdown(
+                "Choose a GGUF model and press **Start complete stack**. The UI starts "
+                "llama-server, the RLM proxy, and Open WebUI in the correct order."
+            )
         with gr.Row():
             model_path = gr.Textbox(
                 label="GGUF model file",
-                placeholder="/path/to/model.gguf",
+                placeholder="C:\\Models\\model.gguf or /path/to/model.gguf",
                 scale=2,
             )
             llama_binary = gr.Textbox(
                 label="llama-server binary",
-                value="llama-server",
+                value=default_llama_binary(),
                 scale=1,
+                visible=not bool(bundled),
             )
         with gr.Accordion("llama.cpp settings", open=False):
             with gr.Row():
@@ -157,14 +164,10 @@ def build_stack_tab(gr: Any, proxy_url: Any, api_key: Any) -> None:
                 parallel = gr.Number(label="Parallel slots", value=1, precision=0)
             with gr.Row():
                 cache_type_k = gr.Dropdown(
-                    label="K cache type",
-                    choices=["q8_0", "q4_0", "f16"],
-                    value="q8_0",
+                    label="K cache type", choices=["q8_0", "q4_0", "f16"], value="q8_0"
                 )
                 cache_type_v = gr.Dropdown(
-                    label="V cache type",
-                    choices=["q4_0", "q8_0", "f16"],
-                    value="q4_0",
+                    label="V cache type", choices=["q4_0", "q8_0", "f16"], value="q4_0"
                 )
                 gpu_layers = gr.Textbox(label="GPU layers", value="all")
         with gr.Accordion("Proxy settings", open=False):
@@ -174,16 +177,13 @@ def build_stack_tab(gr: Any, proxy_url: Any, api_key: Any) -> None:
                 public_api_key = gr.Textbox(label="Public API key", type="password")
             with gr.Row():
                 max_depth = gr.Number(label="Maximum RLM depth", value=2, precision=0)
-                max_iterations = gr.Number(
-                    label="Maximum RLM iterations", value=20, precision=0
-                )
+                max_iterations = gr.Number(label="Maximum RLM iterations", value=20, precision=0)
         with gr.Accordion("Browser interface settings", open=False):
             with gr.Row():
                 webui_host = gr.Textbox(label="Open WebUI host", value="127.0.0.1")
                 webui_port = gr.Number(label="Open WebUI port", value=3000, precision=0)
                 data_dir = gr.Textbox(
-                    label="Persistent data directory",
-                    value="~/.recursive-llm/open-webui",
+                    label="Persistent data directory", value="~/.recursive-llm/open-webui"
                 )
             with gr.Row():
                 auth_enabled = gr.Checkbox(label="Enable Open WebUI accounts", value=False)
