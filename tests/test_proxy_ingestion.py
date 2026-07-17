@@ -23,12 +23,7 @@ def test_natural_windows_validates_overlap():
 
 def test_should_preprocess_uses_threshold_and_enabled_flag():
     assert should_preprocess("x" * 20, IngestionOptions(threshold_chars=10)) is True
-    assert (
-        should_preprocess(
-            "x" * 20, IngestionOptions(enabled=False, threshold_chars=10)
-        )
-        is False
-    )
+    assert should_preprocess("x" * 20, IngestionOptions(enabled=False, threshold_chars=10)) is False
 
 
 @pytest.mark.asyncio

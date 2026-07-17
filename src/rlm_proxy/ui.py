@@ -335,9 +335,7 @@ def build_ui(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the Local RLM Gradio interface")
     parser.add_argument("--host", default=os.getenv("RLM_PROXY_UI_HOST", "127.0.0.1"))
-    parser.add_argument(
-        "--port", default=int(os.getenv("RLM_PROXY_UI_PORT", "7860")), type=int
-    )
+    parser.add_argument("--port", default=int(os.getenv("RLM_PROXY_UI_PORT", "7860")), type=int)
     parser.add_argument(
         "--proxy-url", default=os.getenv("RLM_PROXY_UI_PROXY_URL", "http://127.0.0.1:8000")
     )

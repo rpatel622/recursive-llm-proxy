@@ -42,24 +42,18 @@ def main() -> None:
         "--llama-binary",
         default=os.getenv("RLM_COWORK_LLAMA_BINARY", "llama-server"),
     )
-    parser.add_argument(
-        "--llama-host", default=os.getenv("RLM_COWORK_LLAMA_HOST", "127.0.0.1")
-    )
+    parser.add_argument("--llama-host", default=os.getenv("RLM_COWORK_LLAMA_HOST", "127.0.0.1"))
     parser.add_argument(
         "--llama-port", type=int, default=int(os.getenv("RLM_COWORK_LLAMA_PORT", "8080"))
     )
     parser.add_argument(
         "--context-size", type=int, default=int(os.getenv("RLM_COWORK_CONTEXT_SIZE", "16384"))
     )
-    parser.add_argument(
-        "--parallel", type=int, default=int(os.getenv("RLM_COWORK_PARALLEL", "1"))
-    )
+    parser.add_argument("--parallel", type=int, default=int(os.getenv("RLM_COWORK_PARALLEL", "1")))
     parser.add_argument("--cache-type-k", default=os.getenv("RLM_COWORK_CACHE_TYPE_K", "q8_0"))
     parser.add_argument("--cache-type-v", default=os.getenv("RLM_COWORK_CACHE_TYPE_V", "q4_0"))
     parser.add_argument("--gpu-layers", default=os.getenv("RLM_COWORK_GPU_LAYERS", "all"))
-    parser.add_argument(
-        "--proxy-host", default=os.getenv("RLM_COWORK_PROXY_HOST", "127.0.0.1")
-    )
+    parser.add_argument("--proxy-host", default=os.getenv("RLM_COWORK_PROXY_HOST", "127.0.0.1"))
     parser.add_argument(
         "--proxy-port", type=int, default=int(os.getenv("RLM_COWORK_PROXY_PORT", "8000"))
     )

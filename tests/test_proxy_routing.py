@@ -26,7 +26,9 @@ def catalog() -> SlotCatalog:
                         slug="deployment-prod",
                         turns=[
                             StoredTurn(role="user", content="Production rollback planning"),
-                            StoredTurn(role="assistant", content="Use the blue-green rollback path"),
+                            StoredTurn(
+                                role="assistant", content="Use the blue-green rollback path"
+                            ),
                         ],
                     ),
                     WorkstreamDefinition(
