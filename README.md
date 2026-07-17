@@ -9,6 +9,7 @@ This repository is a fork of [`grishahq/recursive-llm`](https://github.com/grish
 ```text
 application
   <-> public OpenAI-compatible API
+  <-> rolling ingestion for oversized messages
   <-> slot/workstream router
   <-> selected isolated context
   <-> recursive-llm RLM runtime
@@ -18,6 +19,8 @@ application
 
 - OpenAI-compatible `/v1/chat/completions` and `/v1/models`
 - Private OpenAI-compatible model boundary through LiteLLM
+- Rolling-window preprocessing for giant message dumps
+- Natural-boundary chunking, semantic metadata, and actual-request extraction
 - Isolated context slots with named workstreams
 - Automatic routing with adaptive recent-turn expansion
 - Explicit slot/workstream slug overrides
@@ -116,6 +119,19 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
+## Giant message dumps
+
+When the final user message is at least 24,000 characters, the proxy automatically:
+
+1. splits it at paragraphs, headings, lists, and sentence boundaries;
+2. processes bounded rolling windows instead of repeatedly prefilling the full dump;
+3. creates titles, summaries, topics, entities, facts, and boundary metadata;
+4. extracts the actual user request;
+5. sends only that extracted request to slot routing and the root RLM prompt;
+6. retains exact raw chunk text in the RLM external context for targeted REPL search.
+
+The behavior is configurable under `rlm.ingestion` and can be disabled per request. See [Rolling ingestion](docs/rolling-ingestion.md).
+
 ## Slot and workstream model
 
 A slot is an isolated context domain. A workstream is a separate history inside a slot.
@@ -180,6 +196,7 @@ RLM keeps long context in a restricted Python REPL and lets the model inspect, s
 - [Five-minute quick start](docs/quickstart.md)
 - [Gradio administration UI](docs/admin-ui.md)
 - [Proxy API reference](docs/api.md)
+- [Rolling ingestion](docs/rolling-ingestion.md)
 - [Slot and workstream routing](docs/slot-routing.md)
 - [Architecture](docs/architecture.md)
 - [Detailed proxy reference](docs/openai-proxy.md)
