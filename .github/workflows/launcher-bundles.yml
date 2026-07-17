@@ -1,0 +1,57 @@
+name: Build no-terminal launcher bundles
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare Windows bundle
+        run: |
+          mkdir -p dist/windows
+          cp -R launchers dist/windows/
+          cp README.md dist/windows/
+          cp pyproject.toml dist/windows/
+          cp -R src dist/windows/
+
+      - name: Prepare macOS bundle
+        run: |
+          mkdir -p dist/macos
+          cp -R launchers dist/macos/
+          cp README.md dist/macos/
+          cp pyproject.toml dist/macos/
+          cp -R src dist/macos/
+          chmod +x "dist/macos/launchers/macos/Local RLM Cowork.app/Contents/MacOS/local-rlm-cowork"
+
+      - name: Prepare Linux bundle
+        run: |
+          mkdir -p dist/linux
+          cp -R launchers dist/linux/
+          cp README.md dist/linux/
+          cp pyproject.toml dist/linux/
+          cp -R src dist/linux/
+          chmod +x "dist/linux/launchers/linux/Start Local RLM Cowork.desktop"
+
+      - name: Archive bundles
+        run: |
+          cd dist/windows && zip -qr ../local-rlm-cowork-windows.zip .
+          cd ../macos && zip -qry ../local-rlm-cowork-macos.zip .
+          cd ../linux && tar -czf ../local-rlm-cowork-linux.tar.gz .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: local-rlm-cowork-launchers
+          path: |
+            dist/local-rlm-cowork-windows.zip
+            dist/local-rlm-cowork-macos.zip
+            dist/local-rlm-cowork-linux.tar.gz
+          if-no-files-found: error
