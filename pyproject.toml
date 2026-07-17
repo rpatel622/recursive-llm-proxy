@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "recursive-llm"
 version = "0.2.0"
-description = "OpenAI-compatible Recursive Language Model proxy with context-slot routing and a local Gradio administration UI"
+description = "OpenAI-compatible Recursive Language Model proxy with context-slot routing and local browser interfaces"
 authors = [{name = "Grigori Gvadzabia"}]
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
-keywords = ["llm", "ai", "nlp", "recursive", "language-models", "openai-proxy", "llama-cpp", "gradio"]
+keywords = ["llm", "ai", "nlp", "recursive", "language-models", "openai-proxy", "llama-cpp", "gradio", "open-webui"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -37,6 +37,9 @@ ui = [
     "gradio>=6,<7; python_version >= '3.10'",
     "httpx>=0.27,<1",
 ]
+cowork = [
+    "open-webui>=0.6,<1; python_version >= '3.11'",
+]
 dev = [
     "build>=1.2.0",
     "pytest>=7.0.0",
@@ -59,6 +62,7 @@ Changelog = "https://github.com/rpatel622/recursive-llm-proxy/blob/main/CHANGELO
 [project.scripts]
 rlm-proxy = "rlm_proxy.cli:main"
 rlm-proxy-ui = "rlm_proxy.ui:main"
+rlm-cowork = "rlm_proxy.cowork:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -99,5 +103,5 @@ module = "litellm"
 follow_imports = "skip"
 
 [[tool.mypy.overrides]]
-module = ["RestrictedPython", "RestrictedPython.*"]
+module = ["RestrictedPython", "RestrictedPython.*", "open_webui", "open_webui.*"]
 ignore_missing_imports = true
