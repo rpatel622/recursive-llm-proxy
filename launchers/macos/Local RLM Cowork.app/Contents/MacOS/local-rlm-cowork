@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+APP_MACOS_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO_DIR=$(CDPATH= cd -- "$APP_MACOS_DIR/../../../../../" && pwd)
+LAUNCHER="$REPO_DIR/launchers/launcher.pyw"
+
+if command -v pythonw3 >/dev/null 2>&1; then
+    exec pythonw3 "$LAUNCHER"
+elif command -v python3 >/dev/null 2>&1; then
+    exec python3 "$LAUNCHER"
+else
+    /usr/bin/osascript -e 'display alert "Local RLM Cowork" message "Python 3.11 or newer was not found. Install Python from python.org, then open this app again." as critical'
+    exit 1
+fi
