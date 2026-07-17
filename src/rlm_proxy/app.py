@@ -16,8 +16,9 @@ from rlm.errors import RLMError
 
 from .adapter import forwarded_llm_kwargs, split_query_context
 from .config import Settings, get_settings
+from .ingestion import preprocess_dump, should_preprocess
 from .metrics import metrics
-from .models import ChatCompletionRequest, SlotCatalog
+from .models import ChatCompletionRequest, IngestionOptions, SlotCatalog
 from .routing import (
     build_routed_context,
     clarification_text,
@@ -58,10 +59,13 @@ def _completion_payload(
     answer: str,
     stats: Dict[str, Any],
     routing: Optional[Dict[str, Any]] = None,
+    ingestion: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     metadata: Dict[str, Any] = {"stats": stats}
     if routing is not None:
         metadata["routing"] = routing
+    if ingestion is not None:
+        metadata["ingestion"] = ingestion
     return {
         "id": request_id,
         "object": "chat.completion",
@@ -107,7 +111,7 @@ async def _single_chunk_stream(payload: Dict[str, Any]) -> AsyncIterator[bytes]:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="recursive-llm OpenAI proxy", version="0.3.0")
+    app = FastAPI(title="recursive-llm OpenAI proxy", version="0.4.0")
 
     @app.get("/healthz")
     async def healthz() -> Dict[str, str]:
@@ -168,6 +172,44 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail={"message": str(exc)}) from exc
 
         options = request.rlm
+        ingestion_options = (
+            options.ingestion if options and options.ingestion else IngestionOptions()
+        )
+        ingestion_metadata: Optional[Dict[str, Any]] = None
+        if should_preprocess(query, ingestion_options):
+            try:
+                ingested = await preprocess_dump(
+                    text=query,
+                    options=ingestion_options,
+                    model=settings.model,
+                    api_base=settings.private_api_base.rstrip("/"),
+                    api_key=settings.private_api_key.get_secret_value(),
+                )
+            except ValueError as exc:
+                metrics.record(
+                    request_id=request_id,
+                    status="error",
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    error=str(exc),
+                )
+                raise HTTPException(status_code=400, detail={"message": str(exc)}) from exc
+            except Exception as exc:
+                metrics.record(
+                    request_id=request_id,
+                    status="error",
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    error=str(exc),
+                )
+                raise HTTPException(
+                    status_code=502,
+                    detail={"message": str(exc), "type": "ingestion_error"},
+                ) from exc
+            query = ingested.query
+            message_context = "\n\n".join(
+                part for part in (ingested.context, message_context) if part
+            )
+            ingestion_metadata = ingested.metadata
+
         route_metadata: Optional[Dict[str, Any]] = None
         routed_context = ""
         routing_options = options.routing if options and options.routing else None
@@ -205,6 +247,7 @@ def create_app() -> FastAPI:
                     clarification_text(decision),
                     {},
                     route_metadata,
+                    ingestion_metadata,
                 )
                 metrics.record(
                     request_id=request_id,
@@ -278,6 +321,7 @@ def create_app() -> FastAPI:
             result.answer,
             result.stats,
             route_metadata,
+            ingestion_metadata,
         )
         metrics.record(
             request_id=request_id,
