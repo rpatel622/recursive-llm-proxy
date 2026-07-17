@@ -13,8 +13,14 @@ pub struct FixedWindowChunker {
 impl FixedWindowChunker {
     pub fn new(max_chars: usize, overlap_chars: usize) -> Self {
         assert!(max_chars > 0, "max_chars must be greater than zero");
-        assert!(overlap_chars < max_chars, "overlap must be smaller than window");
-        Self { max_chars, overlap_chars }
+        assert!(
+            overlap_chars < max_chars,
+            "overlap must be smaller than window"
+        );
+        Self {
+            max_chars,
+            overlap_chars,
+        }
     }
 }
 
@@ -62,10 +68,20 @@ mod tests {
     #[test]
     fn creates_overlapping_chunks() {
         let document = Document {
-            id: "doc".into(), source_uri: "memory://doc".into(), media_type: "text/plain".into(),
-            title: None, text: "abcdefghij".into(), metadata: BTreeMap::new(),
+            id: "doc".into(),
+            source_uri: "memory://doc".into(),
+            media_type: "text/plain".into(),
+            title: None,
+            text: "abcdefghij".into(),
+            metadata: BTreeMap::new(),
         };
         let chunks = FixedWindowChunker::new(6, 2).chunk(&document);
-        assert_eq!(chunks.iter().map(|c| c.text.as_str()).collect::<Vec<_>>(), vec!["abcdef", "efghij"]);
+        assert_eq!(
+            chunks
+                .iter()
+                .map(|chunk| chunk.text.as_str())
+                .collect::<Vec<_>>(),
+            vec!["abcdef", "efghij"]
+        );
     }
 }
