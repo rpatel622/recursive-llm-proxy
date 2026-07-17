@@ -1,5 +1,6 @@
 //! Stable interfaces for the native Local RLM knowledge pipeline.
 
+pub mod adapters;
 mod chunking;
 mod error;
 mod model;
