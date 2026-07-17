@@ -27,8 +27,14 @@ pub struct XbergDocumentExtractor {
 impl XbergDocumentExtractor {
     #[must_use]
     pub fn new(max_input_bytes: usize, max_output_chars: usize) -> Self {
-        assert!(max_input_bytes > 0, "max_input_bytes must be greater than zero");
-        assert!(max_output_chars > 0, "max_output_chars must be greater than zero");
+        assert!(
+            max_input_bytes > 0,
+            "max_input_bytes must be greater than zero"
+        );
+        assert!(
+            max_output_chars > 0,
+            "max_output_chars must be greater than zero"
+        );
         Self {
             max_input_bytes,
             max_output_chars,
@@ -63,7 +69,12 @@ impl Default for XbergDocumentExtractor {
 
 #[async_trait]
 impl DocumentExtractor for XbergDocumentExtractor {
-    async fn extract(&self, source_uri: &str, media_type: &str, bytes: &[u8]) -> Result<Document> {
+    async fn extract(
+        &self,
+        source_uri: &str,
+        media_type: &str,
+        bytes: &[u8],
+    ) -> Result<Document> {
         self.validate(media_type, bytes)?;
 
         let filename = filename_hint(source_uri);
@@ -134,13 +145,20 @@ mod tests {
     async fn extracts_plain_text() {
         let extractor = XbergDocumentExtractor::default();
         let document = extractor
-            .extract("memory://notes/example.txt", "text/plain", b"Hello from Xberg")
+            .extract(
+                "memory://notes/example.txt",
+                "text/plain",
+                b"Hello from Xberg",
+            )
             .await
             .unwrap();
 
         assert_eq!(document.text, "Hello from Xberg");
         assert_eq!(document.title.as_deref(), Some("example.txt"));
-        assert_eq!(document.metadata.get("extractor").map(String::as_str), Some("xberg"));
+        assert_eq!(
+            document.metadata.get("extractor").map(String::as_str),
+            Some("xberg")
+        );
     }
 
     #[tokio::test]
@@ -190,7 +208,10 @@ mod tests {
             .unwrap();
 
         assert_eq!(document.text, "abcde");
-        assert_eq!(document.metadata.get("truncated").map(String::as_str), Some("true"));
+        assert_eq!(
+            document.metadata.get("truncated").map(String::as_str),
+            Some("true")
+        );
     }
 
     #[test]
