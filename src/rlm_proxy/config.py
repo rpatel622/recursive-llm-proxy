@@ -37,4 +37,5 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    return Settings()
+    # Required values are supplied by BaseSettings from RLM_PROXY_* variables.
+    return Settings()  # type: ignore[call-arg]
