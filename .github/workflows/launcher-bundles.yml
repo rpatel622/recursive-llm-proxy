@@ -10,8 +10,14 @@ on:
       - "src/**"
       - "pyproject.toml"
   push:
+    branches:
+      - main
     tags:
       - "v*"
+
+concurrency:
+  group: bundled-release-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -112,7 +118,6 @@ jobs:
           import json
           import os
           import pathlib
-          import subprocess
 
           root = pathlib.Path(os.environ["BUNDLE_ROOT"])
           python_meta = json.loads((root / "runtime/python-release.json").read_text())
@@ -129,7 +134,9 @@ jobs:
               "llama_asset": llama_meta["asset"],
               "repair": "offline-wheelhouse",
           }
-          (root / "bundle-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+          (root / "bundle-manifest.json").write_text(
+              json.dumps(manifest, indent=2), encoding="utf-8"
+          )
           PY
 
       - name: Verify bundled runtime
@@ -172,9 +179,46 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Attach bundle to GitHub release
+  publish-release:
+    name: Publish downloadable binaries
+    needs: bundle
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Verify release assets
+        run: |
+          set -euxo pipefail
+          test -f release-assets/local-rlm-cowork-windows-x64.zip
+          test -f release-assets/local-rlm-cowork-linux-x64.tar.gz
+          test -f release-assets/local-rlm-cowork-macos-x64.zip
+          sha256sum release-assets/* > release-assets/SHA256SUMS.txt
+
+      - name: Publish permanent tagged release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/${{ env.ARCHIVE_NAME }}.${{ matrix.archive_ext }}
+          files: release-assets/*
           fail_on_unmatched_files: true
+          generate_release_notes: true
+          make_latest: true
+
+      - name: Publish rolling continuous release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: continuous
+          name: Continuous build
+          body: |
+            Automatically built from the latest successful commit on `main`.
+
+            These bundles are convenient development snapshots. For stable, immutable downloads, use a numbered `v*` release.
+          prerelease: true
+          make_latest: false
+          files: release-assets/*
+          fail_on_unmatched_files: true
+          overwrite_files: true
