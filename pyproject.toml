@@ -103,5 +103,9 @@ module = "litellm"
 follow_imports = "skip"
 
 [[tool.mypy.overrides]]
+module = ["gradio", "gradio.*"]
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
 module = ["RestrictedPython", "RestrictedPython.*", "open_webui", "open_webui.*"]
 ignore_missing_imports = true

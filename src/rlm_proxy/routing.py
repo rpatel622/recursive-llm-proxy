@@ -190,8 +190,8 @@ async def resolve_route(
     catalog = normalized_catalog(catalog)
     if options.slot_slug:
         slot = _find_slot(catalog, options.slot_slug)
-        slugs = options.workstream_slugs or [item.slug for item in slot.workstreams]
-        streams = _find_workstreams(slot, slugs)
+        explicit_slugs = options.workstream_slugs or [item.slug for item in slot.workstreams]
+        streams = _find_workstreams(slot, explicit_slugs)
         return RouteDecision(
             status="route",
             slot_slug=slot.slug,
@@ -207,7 +207,7 @@ async def resolve_route(
         raw = await _router_call(query, catalog, options, turn_count, model, api_base, api_key)
         action = str(raw.get("action", "clarify"))
         slot_slug = raw.get("slot_slug")
-        slugs = tuple(str(item) for item in raw.get("workstream_slugs", []))
+        routed_slugs = tuple(str(item) for item in raw.get("workstream_slugs", []))
         reason = str(raw.get("reason", ""))
         candidates = tuple({"slug": str(item)} for item in raw.get("candidate_slugs", []))
 
@@ -216,7 +216,7 @@ async def resolve_route(
             continue
         if action == "route" and options.mode != "clarify_only" and slot_slug:
             slot = _find_slot(catalog, str(slot_slug))
-            streams = _find_workstreams(slot, slugs)
+            streams = _find_workstreams(slot, routed_slugs)
             if not options.allow_multi_workstream and len(streams) > 1:
                 action = "clarify"
             else:
