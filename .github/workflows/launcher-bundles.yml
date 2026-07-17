@@ -1,57 +1,180 @@
-name: Build no-terminal launcher bundles
+name: Build fully bundled Local RLM releases
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/launcher-bundles.yml"
+      - "launchers/**"
+      - "scripts/select_github_release_asset.py"
+      - "src/**"
+      - "pyproject.toml"
   push:
     tags:
       - "v*"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  package:
-    runs-on: ubuntu-latest
+  bundle:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            bundle_name: windows-x64
+            python_asset: cpython-3.11+x86_64-pc-windows-msvc+install_only
+            python_exe: runtime/python/python.exe
+            llama_asset: bin-win-vulkan-x64+.zip
+            archive_ext: zip
+          - runner: ubuntu-22.04
+            bundle_name: linux-x64
+            python_asset: cpython-3.11+x86_64-unknown-linux-gnu+install_only
+            python_exe: runtime/python/bin/python3
+            llama_asset: bin-ubuntu-vulkan-x64+.zip
+            archive_ext: tar.gz
+          - runner: macos-13
+            bundle_name: macos-x64
+            python_asset: cpython-3.11+x86_64-apple-darwin+install_only
+            python_exe: runtime/python/bin/python3
+            llama_asset: bin-macos-x64+.zip
+            archive_ext: zip
+
+    runs-on: ${{ matrix.runner }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BUNDLE_ROOT: dist/local-rlm-cowork
+      ARCHIVE_NAME: local-rlm-cowork-${{ matrix.bundle_name }}
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Prepare Windows bundle
-        run: |
-          mkdir -p dist/windows
-          cp -R launchers dist/windows/
-          cp README.md dist/windows/
-          cp pyproject.toml dist/windows/
-          cp -R src dist/windows/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-      - name: Prepare macOS bundle
+      - name: Create bundle layout
+        shell: bash
         run: |
-          mkdir -p dist/macos
-          cp -R launchers dist/macos/
-          cp README.md dist/macos/
-          cp pyproject.toml dist/macos/
-          cp -R src dist/macos/
-          chmod +x "dist/macos/launchers/macos/Local RLM Cowork.app/Contents/MacOS/local-rlm-cowork"
+          set -euxo pipefail
+          mkdir -p "$BUNDLE_ROOT/runtime/python" "$BUNDLE_ROOT/runtime/llama" "$BUNDLE_ROOT/runtime/wheelhouse"
+          cp -R launchers "$BUNDLE_ROOT/"
+          cp README.md LICENSE pyproject.toml "$BUNDLE_ROOT/"
+          cp -R docs "$BUNDLE_ROOT/"
 
-      - name: Prepare Linux bundle
+      - name: Download relocatable Python runtime
+        shell: bash
         run: |
-          mkdir -p dist/linux
-          cp -R launchers dist/linux/
-          cp README.md dist/linux/
-          cp pyproject.toml dist/linux/
-          cp -R src dist/linux/
-          chmod +x "dist/linux/launchers/linux/Start Local RLM Cowork.desktop"
+          set -euxo pipefail
+          python scripts/select_github_release_asset.py \
+            astral-sh/python-build-standalone \
+            python-runtime.tar.gz \
+            "${{ matrix.python_asset }}"
+          tar -xzf python-runtime.tar.gz
+          test -d python
+          rm -rf "$BUNDLE_ROOT/runtime/python"
+          mv python "$BUNDLE_ROOT/runtime/python"
+          cp python-runtime.tar.gz.json "$BUNDLE_ROOT/runtime/python-release.json"
 
-      - name: Archive bundles
+      - name: Download matching llama.cpp server
+        shell: bash
         run: |
-          cd dist/windows && zip -qr ../local-rlm-cowork-windows.zip .
-          cd ../macos && zip -qry ../local-rlm-cowork-macos.zip .
-          cd ../linux && tar -czf ../local-rlm-cowork-linux.tar.gz .
+          set -euxo pipefail
+          python scripts/select_github_release_asset.py \
+            ggml-org/llama.cpp \
+            llama-runtime.zip \
+            "${{ matrix.llama_asset }}"
+          python - <<'PY'
+          import zipfile
+          zipfile.ZipFile("llama-runtime.zip").extractall("dist/local-rlm-cowork/runtime/llama")
+          PY
+          cp llama-runtime.zip.json "$BUNDLE_ROOT/runtime/llama-release.json"
+
+      - name: Build offline wheelhouse and install application
+        shell: bash
+        run: |
+          set -euxo pipefail
+          PYTHON="$BUNDLE_ROOT/${{ matrix.python_exe }}"
+          chmod +x "$PYTHON" || true
+          "$PYTHON" -m ensurepip --upgrade
+          "$PYTHON" -m pip install --disable-pip-version-check --upgrade pip wheel
+          "$PYTHON" -m pip wheel --wheel-dir "$BUNDLE_ROOT/runtime/wheelhouse" ".[proxy,ui,cowork]"
+          "$PYTHON" -m pip install \
+            --no-index \
+            --find-links "$BUNDLE_ROOT/runtime/wheelhouse" \
+            "recursive-llm[proxy,ui,cowork]"
+
+      - name: Write immutable bundle manifest
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import pathlib
+          import subprocess
+
+          root = pathlib.Path(os.environ["BUNDLE_ROOT"])
+          python_meta = json.loads((root / "runtime/python-release.json").read_text())
+          llama_meta = json.loads((root / "runtime/llama-release.json").read_text())
+          version = os.environ.get("GITHUB_REF_NAME") or "development"
+          manifest = {
+              "schema": 1,
+              "version": version,
+              "commit": os.environ["GITHUB_SHA"],
+              "platform": "${{ matrix.bundle_name }}",
+              "python_version": python_meta["release"],
+              "python_asset": python_meta["asset"],
+              "llama_release": llama_meta["release"],
+              "llama_asset": llama_meta["asset"],
+              "repair": "offline-wheelhouse",
+          }
+          (root / "bundle-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+          PY
+
+      - name: Verify bundled runtime
+        shell: bash
+        run: |
+          set -euxo pipefail
+          PYTHON="$BUNDLE_ROOT/${{ matrix.python_exe }}"
+          "$PYTHON" -c "import tkinter, gradio, open_webui, rlm_proxy; print('bundle imports verified')"
+          test -f "$BUNDLE_ROOT/bundle-manifest.json"
+          find "$BUNDLE_ROOT/runtime/llama" -type f \( -name llama-server -o -name llama-server.exe \) | grep .
+          chmod +x "$BUNDLE_ROOT/launchers/macos/Local RLM Cowork.app/Contents/MacOS/local-rlm-cowork" || true
+          chmod +x "$BUNDLE_ROOT/launchers/linux/Start Local RLM Cowork.desktop" || true
+          find "$BUNDLE_ROOT/runtime/llama" -type f -name llama-server -exec chmod +x {} \; || true
+
+      - name: Archive bundle
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd dist
+          if [ "${{ matrix.archive_ext }}" = "tar.gz" ]; then
+            tar -czf "$ARCHIVE_NAME.tar.gz" local-rlm-cowork
+          else
+            python - <<'PY'
+          import os
+          import pathlib
+          import zipfile
+
+          name = os.environ["ARCHIVE_NAME"] + ".zip"
+          root = pathlib.Path("local-rlm-cowork")
+          with zipfile.ZipFile(name, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
+              for path in root.rglob("*"):
+                  archive.write(path, path.as_posix())
+          PY
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: local-rlm-cowork-launchers
-          path: |
-            dist/local-rlm-cowork-windows.zip
-            dist/local-rlm-cowork-macos.zip
-            dist/local-rlm-cowork-linux.tar.gz
+          name: ${{ env.ARCHIVE_NAME }}
+          path: dist/${{ env.ARCHIVE_NAME }}.${{ matrix.archive_ext }}
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach bundle to GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ env.ARCHIVE_NAME }}.${{ matrix.archive_ext }}
+          fail_on_unmatched_files: true
