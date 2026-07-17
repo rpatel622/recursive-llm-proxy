@@ -28,13 +28,21 @@ These are rough starting points. Other applications, context size, and GPU memor
 
 ## Windows
 
-1. Open the extracted repository folder.
-2. Open `launchers`, then `windows`.
-3. Double-click **Start Local RLM Cowork.vbs**.
-4. In the small launcher window, press **Set up and open**.
-5. Wait while the private app environment is prepared.
+1. Download and extract the complete Windows bundle to a normal folder such as Downloads or Documents.
+2. Do not open the launcher while it is still inside the ZIP file.
+3. Open `launchers`, then `windows`.
+4. Double-click **Start Local RLM Cowork.vbs**.
+5. In the small launcher window, press **Set up and open**.
+6. Wait while the private app environment is prepared.
 
 The launcher works in the background and does not require Command Prompt or PowerShell interaction.
+
+The Windows launcher searches for Python in this order:
+
+- the standard Windows Python launcher, `py.exe`, for Python 3.13, 3.12, or 3.11
+- normal per-user Python installations
+- normal system-wide Python installations
+- `pythonw.exe` available on PATH
 
 ## macOS
 
@@ -109,9 +117,22 @@ Press **Open diagnostics folder** in the launcher window. The main log is:
 ~/.recursive-llm/logs/launcher.log
 ```
 
+### The Windows launcher does nothing
+
+Use the latest Windows bundle from PR #8 or a later release. Earlier copies used `pyw.exe`, which is not present in every Python installation.
+
+Also check:
+
+1. The complete bundle has been extracted from the ZIP.
+2. `launchers\launcher.pyw` exists beside the platform folders.
+3. Python 3.11, 3.12, or 3.13 was installed from python.org.
+4. The Python installer included the Windows Python launcher or added Python to PATH.
+
+The updated launcher displays an error box when the bundle is incomplete or Python cannot be found.
+
 ### Python was not found
 
-Install Python 3.11 or newer from python.org. On Windows, include the Python launcher during installation.
+Install 64-bit Python 3.11 or newer from python.org. On the first installer screen, enable **Add python.exe to PATH** and keep the Python launcher selected.
 
 ### Setup could not finish
 
