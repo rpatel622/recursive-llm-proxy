@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Local RLM Cowork
+Comment=Start private local AI in your browser
+Exec=sh -c 'python3 "$(dirname "$1")/../launcher.pyw"' local-rlm-cowork %k
+Icon=applications-science
+Terminal=false
+Categories=Utility;Education;
+StartupNotify=true
