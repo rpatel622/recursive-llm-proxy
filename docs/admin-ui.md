@@ -1,89 +1,121 @@
-# Gradio local control surface
+# The Local RLM control screen
 
-The Gradio UI is the primary setup surface for one trusted local operator. It can now start the complete local stack without requiring llama.cpp, proxy, or Open WebUI command-line flags.
+The control screen is where you choose the local model and start or stop the complete browser workspace. Most people only need the first tab.
 
-## Install and launch
+## Open the control screen
 
-Current Gradio releases require Python 3.10 or newer. The complete cowork stack requires Python 3.11 or newer.
+Use the launcher for your operating system:
 
-```bash
-python -m pip install -e '.[proxy,ui,cowork]'
-rlm-proxy-ui
+- Windows: `launchers/windows/Start Local RLM Cowork.vbs`
+- macOS: `launchers/macos/Local RLM Cowork.app`
+- Linux: `launchers/linux/Start Local RLM Cowork.desktop`
+
+Press **Set up and open** in the small launcher window. It prepares a private application environment and opens:
+
+```text
+http://127.0.0.1:7860
 ```
 
-Open `http://127.0.0.1:7860`.
+No terminal interaction is required.
 
 ## One-click local stack
 
-The first tab asks for only two essential values:
+The first tab asks for two essential values:
 
-- a local `.gguf` model file
-- the `llama-server` executable, which defaults to `llama-server` on `PATH`
+- **GGUF model file:** the local AI model you downloaded
+- **llama-server executable:** the server program from the llama.cpp release
 
-Press **Start complete stack**. The UI validates configuration and starts:
+When `llama-server` is already available to the system, leave the default value unchanged.
 
-1. `llama-server`
-2. the recursive-llm OpenAI-compatible proxy
-3. Open WebUI
+Press **Start complete stack**. The control screen starts:
 
-The Open WebUI URL is shown in the tab and opens automatically by default. The active proxy URL and public API key are copied into the shared connection controls used by the testing, workspace, and monitoring tabs.
+1. the local model server;
+2. the Recursive Language Model layer;
+3. the Open WebUI browser workspace.
 
-Default endpoints:
-
-```text
-Gradio control surface: http://127.0.0.1:7860
-llama-server:           http://127.0.0.1:8080/v1
-RLM proxy:              http://127.0.0.1:8000
-Open WebUI:             http://127.0.0.1:3000
-```
-
-## Hidden complexity and defaults
-
-Advanced settings are grouped into closed accordions so the default path does not require understanding llama.cpp flags.
-
-The default llama.cpp runtime values are:
+Open WebUI normally appears automatically. Its default address is:
 
 ```text
-context size: 16384
-parallel slots: 1
-K cache: q8_0
-V cache: q4_0
-GPU layers: all
+http://127.0.0.1:3000
 ```
 
-The tab also exposes optional controls for:
+## What the status panel means
 
-- llama.cpp host and port
-- context size and parallel slots
-- K/V cache quantization
-- GPU layer offload
-- proxy host, port, public key, recursion depth, and iterations
-- Open WebUI host, port, persistent data directory, browser opening, and accounts
+The status panel reports each local service separately:
 
-If any service fails during startup, the UI stops all partially started services and shows the error. **Stop complete stack** shuts down Open WebUI, the proxy, and llama-server in reverse order.
+| Service | What it does |
+|---|---|
+| llama-server | Loads and runs the GGUF model |
+| RLM proxy | Handles long context, recursive work, routing, and API compatibility |
+| Open WebUI | Provides chat, workspaces, documents, prompts, and browser features |
+
+When startup fails partway through, the control screen stops anything it already started. This prevents hidden model or server processes from being left behind.
+
+Press **Stop complete stack** to shut down the services in the safe reverse order.
+
+## Recommended defaults
+
+The first launch should use the values already shown:
+
+```text
+Context size:           16384
+Parallel conversations: 1
+K cache:                q8_0
+V cache:                q4_0
+GPU layers:             all
+```
+
+These settings aim for a useful balance of memory use, speed, and compatibility. They are not guaranteed to fit every model and computer.
+
+## When to open Advanced model settings
+
+Use the advanced model settings only when:
+
+- the model does not fit in memory;
+- the installed llama.cpp build rejects a cache format;
+- you need CPU-only operation;
+- you understand the hardware-specific values you want.
+
+Common recovery steps:
+
+1. Reduce context size from 16384 to 8192.
+2. Try a smaller GGUF model.
+3. Change GPU layers from `all` to a smaller number or `0`.
+4. Change both cache formats to `f16`.
+
+## Browser workspace settings
+
+The Open WebUI section controls:
+
+- the local browser address;
+- where conversations and workspace data are stored;
+- whether the browser opens automatically;
+- whether local user accounts are enabled.
+
+For one person using one computer, the default local single-user mode is the simplest option. Enable accounts before exposing the interface to any network.
 
 ## Advanced proxy
 
-The Advanced proxy tab remains available for users who already run an OpenAI-compatible model endpoint. It configures and starts only the proxy and supports custom URLs, keys, models, and RLM limits.
+The **Advanced proxy** tab is for people who already have an OpenAI-compatible model server or need custom API values. It starts only the RLM proxy and does not manage a GGUF model or Open WebUI.
 
-## Shared connection
-
-The connection controls at the top of the page identify the currently active proxy. They can also point at a proxy launched outside the UI. **Check connection** verifies health and model discovery.
+Most local users do not need this tab.
 
 ## Workspaces
 
-The Workspaces tab is the advanced slot/workstream catalog editor. It loads, edits, validates, and atomically replaces the process-local catalog as JSON.
+The **Workspaces** tab exposes the underlying slot and workstream catalog. It is useful for deliberate context separation, but normal Open WebUI conversations and workspaces can be used without editing JSON.
 
 ## Test request
 
-The test form sends `/v1/chat/completions` requests and exposes automatic or explicit routing, workspace/workstream selection, routing metadata, assistant output, and RLM usage statistics.
+The test tab sends a direct request through the local RLM proxy and shows routing and usage details. It is primarily a diagnostic tool.
 
 ## Monitoring
 
-The Monitoring tab displays process-local uptime, request outcomes, latency, token totals, workspace counts, and recent request records. Prompt, context, and generated answer content are not retained in metrics.
+The monitoring tab shows uptime, completed requests, failures, latency, token totals, workspace counts, and recent request records. It does not retain prompt text, selected context, or generated answers.
 
-## Current limits
+## Local-only safety
 
-The UI does not yet download llama.cpp releases or search and download Hugging Face GGUF files. The binary and model must currently exist locally. Automatic installation and hardware-aware fallback remain follow-on work.
+All services listen only on this computer by default. Do not change the hosts to `0.0.0.0` or expose the ports to a network unless authentication and firewall rules are configured.
 
-All services bind to loopback by default. Do not expose the control surface or unauthenticated Open WebUI instance to a network without an appropriate authentication and firewall boundary.
+## Current limitations
+
+The control screen does not yet download llama.cpp or search Hugging Face for GGUF models. Those two files must currently be downloaded separately. Hardware-aware recommendations and automatic fallback after memory errors are planned follow-on work.
