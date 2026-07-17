@@ -1,0 +1,30 @@
+[package]
+name = "rlm-knowledge-core"
+version = "0.1.0"
+description = "Binary-friendly document ingestion, embedding, reranking, and storage interfaces for Local RLM"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+fastembed = ["dep:fastembed"]
+memvid = ["dep:memvid-core"]
+xberg = ["dep:xberg"]
+full = ["fastembed", "memvid", "xberg"]
+
+[dependencies]
+async-trait = "0.1"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+
+# Kept optional so the core crate compiles without ONNX Runtime or broad format support.
+fastembed = { version = "5.17", default-features = false, features = ["ort-download-binaries-rustls-tls", "hf-hub-rustls-tls"], optional = true }
+memvid-core = { version = "2", default-features = false, features = ["lex"], optional = true }
+xberg = { version = "1", default-features = false, features = ["tokio-runtime", "simd-utf8", "pdf", "office", "excel", "html", "xml", "email", "archives", "chunking"], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true
