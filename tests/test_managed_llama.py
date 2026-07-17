@@ -5,7 +5,9 @@ import pytest
 from rlm_proxy.managed_llama import LlamaServerLaunchConfig
 
 
-def test_command_uses_accessibility_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_command_uses_accessibility_defaults(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     model = tmp_path / "model.gguf"
     model.write_bytes(b"gguf")
     binary = tmp_path / "llama-server"

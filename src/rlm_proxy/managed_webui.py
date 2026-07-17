@@ -89,7 +89,16 @@ class ManagedWebUI:
     def start(self, config: WebUILaunchConfig, timeout_seconds: float = 90.0) -> Dict[str, object]:
         config.validate()
         self.stop()
-        command = [sys.executable, "-m", "open_webui", "serve", "--host", config.host, "--port", str(config.port)]
+        command = [
+            sys.executable,
+            "-m",
+            "open_webui",
+            "serve",
+            "--host",
+            config.host,
+            "--port",
+            str(config.port),
+        ]
         process = subprocess.Popen(
             command,
             env=config.environment(),

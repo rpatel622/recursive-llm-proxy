@@ -107,9 +107,7 @@ def _metadata_view(catalog: SlotCatalog, turn_count: int) -> List[Dict[str, Any]
                     "description": stream.description,
                     "loaded_turn_count": min(turn_count, len(stream.turns)),
                     "available_turn_count": len(stream.turns),
-                    "recent_turns": [
-                        turn.model_dump() for turn in stream.turns[-turn_count:]
-                    ],
+                    "recent_turns": [turn.model_dump() for turn in stream.turns[-turn_count:]],
                 }
             )
         result.append(
@@ -206,16 +204,12 @@ async def resolve_route(
 
     turn_count = options.initial_turn_count
     while True:
-        raw = await _router_call(
-            query, catalog, options, turn_count, model, api_base, api_key
-        )
+        raw = await _router_call(query, catalog, options, turn_count, model, api_base, api_key)
         action = str(raw.get("action", "clarify"))
         slot_slug = raw.get("slot_slug")
         slugs = tuple(str(item) for item in raw.get("workstream_slugs", []))
         reason = str(raw.get("reason", ""))
-        candidates = tuple(
-            {"slug": str(item)} for item in raw.get("candidate_slugs", [])
-        )
+        candidates = tuple({"slug": str(item)} for item in raw.get("candidate_slugs", []))
 
         if action == "expand" and turn_count < options.max_turn_count:
             turn_count = min(options.max_turn_count, max(turn_count + 1, turn_count * 2))
@@ -227,11 +221,13 @@ async def resolve_route(
                 action = "clarify"
             else:
                 return RouteDecision(
-                    "route", slot.slug, tuple(item.slug for item in streams), turn_count, reason=reason
+                    "route",
+                    slot.slug,
+                    tuple(item.slug for item in streams),
+                    turn_count,
+                    reason=reason,
                 )
-        return RouteDecision(
-            "clarify", None, (), turn_count, candidates=candidates, reason=reason
-        )
+        return RouteDecision("clarify", None, (), turn_count, candidates=candidates, reason=reason)
 
 
 def build_routed_context(catalog: SlotCatalog, decision: RouteDecision) -> str:
