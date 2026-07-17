@@ -7,6 +7,7 @@ on:
       - ".github/workflows/launcher-bundles.yml"
       - "launchers/**"
       - "scripts/select_github_release_asset.py"
+      - "scripts/optimize_bundle.py"
       - "src/**"
       - "pyproject.toml"
   push:
@@ -30,19 +31,19 @@ jobs:
         include:
           - runner: windows-latest
             bundle_name: windows-x64
-            python_asset: cpython-3.11+x86_64-pc-windows-msvc+install_only
+            python_asset: cpython-3.11+x86_64-pc-windows-msvc+install_only_stripped
             python_exe: runtime/python/python.exe
             llama_asset: bin-win-vulkan-x64+.zip
             llama_archive_ext: zip
           - runner: ubuntu-22.04
             bundle_name: linux-x64
-            python_asset: cpython-3.11+x86_64-unknown-linux-gnu+install_only
+            python_asset: cpython-3.11+x86_64-unknown-linux-gnu+install_only_stripped
             python_exe: runtime/python/bin/python3
             llama_asset: bin-ubuntu-vulkan-x64+.tar.gz
             llama_archive_ext: tar.gz
           - runner: macos-13
             bundle_name: macos-x64
-            python_asset: cpython-3.11+x86_64-apple-darwin+install_only
+            python_asset: cpython-3.11+x86_64-apple-darwin+install_only_stripped
             python_exe: runtime/python/bin/python3
             llama_asset: bin-macos-x64+.tar.gz
             llama_archive_ext: tar.gz
@@ -51,6 +52,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BUNDLE_ROOT: dist/local-rlm-cowork
+      BUILD_WHEELHOUSE: dist/build-wheelhouse
 
     steps:
       - uses: actions/checkout@v4
@@ -63,7 +65,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          mkdir -p "$BUNDLE_ROOT/runtime/python" "$BUNDLE_ROOT/runtime/llama" "$BUNDLE_ROOT/runtime/wheelhouse"
+          mkdir -p "$BUNDLE_ROOT/runtime/python" "$BUNDLE_ROOT/runtime/llama" "$BUILD_WHEELHOUSE"
           cp -R launchers "$BUNDLE_ROOT/"
           cp README.md LICENSE pyproject.toml "$BUNDLE_ROOT/"
           cp -R docs "$BUNDLE_ROOT/"
@@ -102,7 +104,7 @@ jobs:
           PY
           cp "$LLAMA_ARCHIVE.json" "$BUNDLE_ROOT/runtime/llama-release.json"
 
-      - name: Build offline wheelhouse and install application
+      - name: Build temporary wheelhouse and install application
         shell: bash
         run: |
           set -euxo pipefail
@@ -110,11 +112,21 @@ jobs:
           chmod +x "$PYTHON" || true
           "$PYTHON" -m ensurepip --upgrade
           "$PYTHON" -m pip install --disable-pip-version-check --upgrade pip wheel
-          "$PYTHON" -m pip wheel --wheel-dir "$BUNDLE_ROOT/runtime/wheelhouse" ".[proxy,ui,cowork]"
+          "$PYTHON" -m pip wheel --wheel-dir "$BUILD_WHEELHOUSE" ".[proxy,ui,cowork]"
           "$PYTHON" -m pip install \
+            --no-compile \
             --no-index \
-            --find-links "$BUNDLE_ROOT/runtime/wheelhouse" \
+            --find-links "$BUILD_WHEELHOUSE" \
             "recursive-llm[proxy,ui,cowork]"
+          rm -rf "$BUILD_WHEELHOUSE"
+
+      - name: Optimize bundle and report size
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python scripts/optimize_bundle.py \
+            "$BUNDLE_ROOT" \
+            --output "$BUNDLE_ROOT/bundle-size-report.json"
 
       - name: Write immutable bundle manifest
         shell: bash
@@ -127,6 +139,7 @@ jobs:
           root = pathlib.Path(os.environ["BUNDLE_ROOT"])
           python_meta = json.loads((root / "runtime/python-release.json").read_text())
           llama_meta = json.loads((root / "runtime/llama-release.json").read_text())
+          size_meta = json.loads((root / "bundle-size-report.json").read_text())
           version = os.environ.get("GITHUB_REF_NAME") or "development"
           manifest = {
               "schema": 1,
@@ -137,7 +150,8 @@ jobs:
               "python_asset": python_meta["asset"],
               "llama_release": llama_meta["release"],
               "llama_asset": llama_meta["asset"],
-              "repair": "offline-wheelhouse",
+              "packaging": "installed-runtime-without-wheelhouse",
+              "bundle_bytes": size_meta["total_bytes"],
           }
           (root / "bundle-manifest.json").write_text(
               json.dumps(manifest, indent=2), encoding="utf-8"
@@ -151,6 +165,8 @@ jobs:
           PYTHON="$BUNDLE_ROOT/${{ matrix.python_exe }}"
           "$PYTHON" -c "import tkinter, gradio, open_webui, rlm_proxy; print('bundle imports verified')"
           test -f "$BUNDLE_ROOT/bundle-manifest.json"
+          test -f "$BUNDLE_ROOT/bundle-size-report.json"
+          test ! -d "$BUNDLE_ROOT/runtime/wheelhouse"
           find "$BUNDLE_ROOT/runtime/llama" -type f \( -name llama-server -o -name llama-server.exe \) | grep .
           chmod +x "$BUNDLE_ROOT/launchers/macos/Local RLM Cowork.app/Contents/MacOS/local-rlm-cowork" || true
           chmod +x "$BUNDLE_ROOT/launchers/linux/Start Local RLM Cowork.desktop" || true
@@ -189,6 +205,7 @@ jobs:
             destination="release-assets/local-rlm-cowork-${platform}.${extension}"
 
             test -f "$source/bundle-manifest.json"
+            test -f "$source/bundle-size-report.json"
             rm -rf package-root/local-rlm-cowork
             mkdir -p package-root/local-rlm-cowork
             cp -a "$source/." package-root/local-rlm-cowork/
@@ -201,7 +218,7 @@ jobs:
             if [ "$extension" = "tar.gz" ]; then
               tar -C package-root -czf "$destination" local-rlm-cowork
             else
-              PLATFORM="$platform" DESTINATION="$destination" python - <<'PY'
+              DESTINATION="$destination" python - <<'PY'
           import os
           import pathlib
           import zipfile
