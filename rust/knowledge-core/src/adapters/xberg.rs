@@ -69,12 +69,7 @@ impl Default for XbergDocumentExtractor {
 
 #[async_trait]
 impl DocumentExtractor for XbergDocumentExtractor {
-    async fn extract(
-        &self,
-        source_uri: &str,
-        media_type: &str,
-        bytes: &[u8],
-    ) -> Result<Document> {
+    async fn extract(&self, source_uri: &str, media_type: &str, bytes: &[u8]) -> Result<Document> {
         self.validate(media_type, bytes)?;
 
         let filename = filename_hint(source_uri);
