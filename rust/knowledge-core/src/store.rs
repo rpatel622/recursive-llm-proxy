@@ -61,11 +61,7 @@ fn cosine_similarity(left: &[f32], right: &[f32]) -> Option<f32> {
     }
     let dot: f32 = left.iter().zip(right).map(|(a, b)| a * b).sum();
     let left_norm: f32 = left.iter().map(|value| value * value).sum::<f32>().sqrt();
-    let right_norm: f32 = right
-        .iter()
-        .map(|value| value * value)
-        .sum::<f32>()
-        .sqrt();
+    let right_norm: f32 = right.iter().map(|value| value * value).sum::<f32>().sqrt();
     (left_norm > 0.0 && right_norm > 0.0).then_some(dot / (left_norm * right_norm))
 }
 
@@ -95,9 +91,7 @@ mod tests {
             ])
             .unwrap();
         assert_eq!(
-            store.vector_search(&[1.0, 0.0], 1).unwrap()[0]
-                .chunk
-                .id,
+            store.vector_search(&[1.0, 0.0], 1).unwrap()[0].chunk.id,
             "near"
         );
     }
