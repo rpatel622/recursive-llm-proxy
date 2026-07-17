@@ -34,27 +34,23 @@ jobs:
             python_exe: runtime/python/python.exe
             llama_asset: bin-win-vulkan-x64+.zip
             llama_archive_ext: zip
-            archive_ext: zip
           - runner: ubuntu-22.04
             bundle_name: linux-x64
             python_asset: cpython-3.11+x86_64-unknown-linux-gnu+install_only
             python_exe: runtime/python/bin/python3
             llama_asset: bin-ubuntu-vulkan-x64+.tar.gz
             llama_archive_ext: tar.gz
-            archive_ext: tar.gz
           - runner: macos-13
             bundle_name: macos-x64
             python_asset: cpython-3.11+x86_64-apple-darwin+install_only
             python_exe: runtime/python/bin/python3
             llama_asset: bin-macos-x64+.tar.gz
             llama_archive_ext: tar.gz
-            archive_ext: zip
 
     runs-on: ${{ matrix.runner }}
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BUNDLE_ROOT: dist/local-rlm-cowork
-      ARCHIVE_NAME: local-rlm-cowork-${{ matrix.bundle_name }}
 
     steps:
       - uses: actions/checkout@v4
@@ -160,33 +156,14 @@ jobs:
           chmod +x "$BUNDLE_ROOT/launchers/linux/Start Local RLM Cowork.desktop" || true
           find "$BUNDLE_ROOT/runtime/llama" -type f -name llama-server -exec chmod +x {} \; || true
 
-      - name: Archive bundle
-        shell: bash
-        run: |
-          set -euxo pipefail
-          cd dist
-          if [ "${{ matrix.archive_ext }}" = "tar.gz" ]; then
-            tar -czf "$ARCHIVE_NAME.tar.gz" local-rlm-cowork
-          else
-            python - <<'PY'
-          import os
-          import pathlib
-          import zipfile
-
-          name = os.environ["ARCHIVE_NAME"] + ".zip"
-          root = pathlib.Path("local-rlm-cowork")
-          with zipfile.ZipFile(name, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
-              for path in root.rglob("*"):
-                  archive.write(path, path.as_posix())
-          PY
-          fi
-
-      - uses: actions/upload-artifact@v4
+      - name: Upload unpacked bundle content
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARCHIVE_NAME }}
-          path: dist/${{ env.ARCHIVE_NAME }}.${{ matrix.archive_ext }}
+          name: bundle-content-${{ matrix.bundle_name }}
+          path: dist/local-rlm-cowork
           if-no-files-found: error
           retention-days: 14
+          compression-level: 6
 
   publish-release:
     name: Publish downloadable binaries
@@ -194,14 +171,56 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download unpacked platform bundles
+        uses: actions/download-artifact@v4
         with:
-          path: release-assets
-          merge-multiple: true
+          pattern: bundle-content-*
+          path: staged-bundles
 
-      - name: Verify release assets
+      - name: Create release archives
         run: |
           set -euxo pipefail
+          mkdir -p release-assets package-root/local-rlm-cowork
+
+          package_bundle() {
+            platform="$1"
+            extension="$2"
+            source="staged-bundles/bundle-content-${platform}"
+            destination="release-assets/local-rlm-cowork-${platform}.${extension}"
+
+            test -f "$source/bundle-manifest.json"
+            rm -rf package-root/local-rlm-cowork
+            mkdir -p package-root/local-rlm-cowork
+            cp -a "$source/." package-root/local-rlm-cowork/
+
+            chmod +x "package-root/local-rlm-cowork/launchers/macos/Local RLM Cowork.app/Contents/MacOS/local-rlm-cowork" || true
+            chmod +x "package-root/local-rlm-cowork/launchers/linux/Start Local RLM Cowork.desktop" || true
+            find package-root/local-rlm-cowork/runtime/llama -type f -name llama-server -exec chmod +x {} \; || true
+            find package-root/local-rlm-cowork/runtime/python -type f -path '*/bin/*' -exec chmod +x {} \; || true
+
+            if [ "$extension" = "tar.gz" ]; then
+              tar -C package-root -czf "$destination" local-rlm-cowork
+            else
+              PLATFORM="$platform" DESTINATION="$destination" python - <<'PY'
+          import os
+          import pathlib
+          import zipfile
+
+          root = pathlib.Path("package-root/local-rlm-cowork")
+          destination = pathlib.Path(os.environ["DESTINATION"])
+          with zipfile.ZipFile(
+              destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6
+          ) as archive:
+              for path in sorted(root.rglob("*")):
+                  archive.write(path, path.relative_to(root.parent).as_posix())
+          PY
+            fi
+          }
+
+          package_bundle windows-x64 zip
+          package_bundle linux-x64 tar.gz
+          package_bundle macos-x64 zip
+
           test -f release-assets/local-rlm-cowork-windows-x64.zip
           test -f release-assets/local-rlm-cowork-linux-x64.tar.gz
           test -f release-assets/local-rlm-cowork-macos-x64.zip
