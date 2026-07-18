@@ -14,8 +14,9 @@ use base64::Engine;
 use fastembed::{RerankInitOptions, TextInitOptions};
 use rlm_knowledge_core::adapters::{FastEmbedEmbedder, FastEmbedReranker, XbergDocumentExtractor};
 use rlm_knowledge_core::{
-    Chunker, DocumentExtractor, Embedder, EmbeddedChunk, FixedWindowChunker, KnowledgeDocumentSummary,
-    KnowledgeError, KnowledgeStats, KnowledgeStore, Reranker, SearchHit, SqliteKnowledgeStore,
+    Chunker, DocumentExtractor, EmbeddedChunk, Embedder, FixedWindowChunker,
+    KnowledgeDocumentSummary, KnowledgeError, KnowledgeStats, KnowledgeStore, Reranker, SearchHit,
+    SqliteKnowledgeStore,
 };
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
@@ -191,7 +192,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/v1/knowledge/ingest", post(ingest))
         .route("/v1/knowledge/search", post(search))
         .route("/v1/knowledge/documents", get(list_documents))
-        .route("/v1/knowledge/documents/{document_id}", delete(delete_document))
+        .route(
+            "/v1/knowledge/documents/{document_id}",
+            delete(delete_document),
+        )
         .route("/v1/knowledge/stats", get(stats))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
@@ -248,7 +252,8 @@ async fn ingest(
         .collect();
 
     let _guard = state.inner.mutation_gate.lock().await;
-    let replaced_document_ids = document_ids_for_source(&state.inner.database_path, &request.source_uri)?;
+    let replaced_document_ids =
+        document_ids_for_source(&state.inner.database_path, &request.source_uri)?;
     for document_id in &replaced_document_ids {
         delete_document_rows(&state.inner.database_path, document_id)?;
     }
@@ -282,10 +287,11 @@ async fn search(
         .pop()
         .ok_or_else(|| ApiError::internal("embedder returned no query vector"))?;
     let candidate_limit = request.candidate_limit.max(request.limit);
-    let candidates = state
-        .inner
-        .store
-        .hybrid_search(&request.query, &query_vector, candidate_limit)?;
+    let candidates =
+        state
+            .inner
+            .store
+            .hybrid_search(&request.query, &query_vector, candidate_limit)?;
     let hits = if request.rerank {
         state
             .inner
@@ -327,7 +333,10 @@ async fn delete_document(
 }
 
 fn ensure_parent(path: &Path) -> std::io::Result<()> {
-    if let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
         std::fs::create_dir_all(parent)?;
     }
     Ok(())
@@ -343,7 +352,9 @@ fn document_ids_for_source(path: &Path, source_uri: &str) -> Result<Vec<String>,
         .prepare("SELECT DISTINCT document_id, metadata_json FROM knowledge_chunks")
         .map_err(|error| ApiError::internal(error.to_string()))?;
     let rows = statement
-        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
         .map_err(|error| ApiError::internal(error.to_string()))?;
     let mut ids = BTreeSet::new();
     for row in rows {
@@ -428,7 +439,9 @@ fn read_stats(path: &Path) -> Result<KnowledgeStats, ApiError> {
         )
         .map_err(|error| ApiError::internal(error.to_string()))?;
     let chunk_count: i64 = connection
-        .query_row("SELECT COUNT(*) FROM knowledge_chunks", [], |row| row.get(0))
+        .query_row("SELECT COUNT(*) FROM knowledge_chunks", [], |row| {
+            row.get(0)
+        })
         .map_err(|error| ApiError::internal(error.to_string()))?;
     let mut statement = connection
         .prepare(
