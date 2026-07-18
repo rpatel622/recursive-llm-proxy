@@ -282,7 +282,11 @@ async fn search(
         }));
     }
 
-    let mut vectors = state.inner.embedder.embed(&[request.query.clone()]).await?;
+    let mut vectors = state
+        .inner
+        .embedder
+        .embed(std::slice::from_ref(&request.query))
+        .await?;
     let query_vector = vectors
         .pop()
         .ok_or_else(|| ApiError::internal("embedder returned no query vector"))?;
