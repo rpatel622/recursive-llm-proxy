@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     model: str = Field(default="openai/local", min_length=1)
     recursive_model: Optional[str] = None
 
+    catalog_db_path: str = Field(default="rlm-catalog.sqlite3", min_length=1)
+
     knowledge_api_base: Optional[str] = None
     knowledge_timeout_seconds: float = Field(default=30.0, gt=0)
     knowledge_candidate_limit: int = Field(default=24, gt=0)
