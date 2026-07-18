@@ -55,7 +55,7 @@ impl KnowledgeStore for InMemoryKnowledgeStore {
     }
 }
 
-fn cosine_similarity(left: &[f32], right: &[f32]) -> Option<f32> {
+pub(crate) fn cosine_similarity(left: &[f32], right: &[f32]) -> Option<f32> {
     if left.len() != right.len() || left.is_empty() {
         return None;
     }
