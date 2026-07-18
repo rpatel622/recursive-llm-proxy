@@ -1,14 +1,15 @@
-"""In-memory slot catalog and adaptive model-assisted routing."""
+"""Persistent slot catalog and adaptive model-assisted routing."""
 
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
-from threading import RLock
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import litellm
 
+from .catalog_store import SlotRegistry
 from .models import RoutingOptions, SlotCatalog, SlotDefinition, WorkstreamDefinition
 
 
@@ -22,23 +23,7 @@ class RouteDecision:
     reason: str = ""
 
 
-class SlotRegistry:
-    """Thread-safe process-local catalog. Replaceable through the HTTP API."""
-
-    def __init__(self) -> None:
-        self._lock = RLock()
-        self._catalog = SlotCatalog(slots=[])
-
-    def replace(self, catalog: SlotCatalog) -> None:
-        with self._lock:
-            self._catalog = catalog.model_copy(deep=True)
-
-    def snapshot(self) -> SlotCatalog:
-        with self._lock:
-            return self._catalog.model_copy(deep=True)
-
-
-registry = SlotRegistry()
+registry = SlotRegistry(os.getenv("RLM_PROXY_CATALOG_DB_PATH", "rlm-catalog.sqlite3"))
 
 
 def _generated_name(slug: str) -> str:
@@ -77,7 +62,7 @@ def normalized_catalog(catalog: SlotCatalog) -> SlotCatalog:
                 }
             )
         )
-    return SlotCatalog(slots=slots)
+    return SlotCatalog(slots=slots, version=catalog.version)
 
 
 def _find_slot(catalog: SlotCatalog, slug: str) -> SlotDefinition:
