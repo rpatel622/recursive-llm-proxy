@@ -43,12 +43,18 @@ impl Chunker for FixedWindowChunker {
         while start < chars.len() {
             let end = usize::min(start + self.max_chars, chars.len());
             let text: String = chars[start..end].iter().collect();
+            let mut metadata = document.metadata.clone();
+            metadata.insert("source_uri".into(), document.source_uri.clone());
+            metadata.insert("media_type".into(), document.media_type.clone());
+            if let Some(title) = &document.title {
+                metadata.insert("title".into(), title.clone());
+            }
             chunks.push(DocumentChunk {
                 id: format!("{}:{ordinal}", document.id),
                 document_id: document.id.clone(),
                 ordinal,
                 text,
-                metadata: document.metadata.clone(),
+                metadata,
             });
             if end == chars.len() {
                 break;
@@ -65,17 +71,20 @@ mod tests {
     use super::*;
     use std::collections::BTreeMap;
 
-    #[test]
-    fn creates_overlapping_chunks() {
-        let document = Document {
+    fn document() -> Document {
+        Document {
             id: "doc".into(),
-            source_uri: "memory://doc".into(),
+            source_uri: "memory://doc.txt".into(),
             media_type: "text/plain".into(),
-            title: None,
+            title: Some("doc.txt".into()),
             text: "abcdefghij".into(),
             metadata: BTreeMap::new(),
-        };
-        let chunks = FixedWindowChunker::new(6, 2).chunk(&document);
+        }
+    }
+
+    #[test]
+    fn creates_overlapping_chunks() {
+        let chunks = FixedWindowChunker::new(6, 2).chunk(&document());
         assert_eq!(
             chunks
                 .iter()
@@ -83,5 +92,21 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["abcdef", "efghij"]
         );
+    }
+
+    #[test]
+    fn preserves_citation_metadata() {
+        let chunks = FixedWindowChunker::new(6, 2).chunk(&document());
+        let metadata = &chunks[0].metadata;
+
+        assert_eq!(
+            metadata.get("source_uri").map(String::as_str),
+            Some("memory://doc.txt")
+        );
+        assert_eq!(
+            metadata.get("media_type").map(String::as_str),
+            Some("text/plain")
+        );
+        assert_eq!(metadata.get("title").map(String::as_str), Some("doc.txt"));
     }
 }
