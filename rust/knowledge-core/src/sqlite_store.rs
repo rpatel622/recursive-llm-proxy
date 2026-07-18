@@ -106,7 +106,9 @@ impl SqliteKnowledgeStore {
             return Ok(Vec::new());
         }
 
-        let candidate_limit = limit.saturating_mul(DEFAULT_CANDIDATE_MULTIPLIER).max(limit);
+        let candidate_limit = limit
+            .saturating_mul(DEFAULT_CANDIDATE_MULTIPLIER)
+            .max(limit);
         let lexical_hits = self.lexical_search(text_query, candidate_limit)?;
         let vector_hits = self.vector_search(vector_query, candidate_limit)?;
         Ok(fuse_ranked_lists(
@@ -375,7 +377,10 @@ mod tests {
 
         assert_eq!(store.hybrid_search("", &[1.0, 0.0], 1).unwrap().len(), 1);
         assert_eq!(store.hybrid_search("rust", &[], 1).unwrap().len(), 1);
-        assert!(store.hybrid_search("rust", &[1.0, 0.0], 0).unwrap().is_empty());
+        assert!(store
+            .hybrid_search("rust", &[1.0, 0.0], 0)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
