@@ -13,7 +13,9 @@ mod store;
 
 pub use chunking::{Chunker, FixedWindowChunker};
 pub use error::{KnowledgeError, Result};
-pub use model::{Document, DocumentChunk, EmbeddedChunk, SearchHit};
+pub use model::{
+    Document, DocumentChunk, EmbeddedChunk, KnowledgeDocumentSummary, KnowledgeStats, SearchHit,
+};
 pub use pipeline::{DocumentExtractor, Embedder, KnowledgePipeline, Reranker};
 #[cfg(feature = "sqlite")]
 pub use sqlite_store::SqliteKnowledgeStore;

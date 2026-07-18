@@ -1,5 +1,5 @@
 [workspace]
-members = ["rust/knowledge-core"]
+members = ["rust/knowledge-core", "rust/knowledge-service"]
 resolver = "2"
 
 [workspace.package]

@@ -97,12 +97,26 @@ class IngestionOptions(BaseModel):
         return self
 
 
+class KnowledgeOptions(BaseModel):
+    """Controls optional persistent knowledge retrieval for a chat request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    candidate_limit: Optional[int] = Field(default=None, gt=0)
+    limit: Optional[int] = Field(default=None, gt=0)
+    rerank: bool = True
+    max_context_chars: Optional[int] = Field(default=None, gt=0)
+    required: bool = False
+
+
 class RLMOptions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     context: Optional[str] = None
     routing: Optional[RoutingOptions] = None
     ingestion: Optional[IngestionOptions] = None
+    knowledge: Optional[KnowledgeOptions] = None
     max_depth: Optional[int] = Field(default=None, ge=0)
     max_iterations: Optional[int] = Field(default=None, gt=0)
     max_total_calls: Optional[int] = Field(default=None, gt=0)

@@ -34,3 +34,19 @@ pub struct SearchHit {
     pub chunk: DocumentChunk,
     pub score: f32,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KnowledgeDocumentSummary {
+    pub document_id: String,
+    pub source_uri: Option<String>,
+    pub media_type: Option<String>,
+    pub title: Option<String>,
+    pub chunk_count: usize,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KnowledgeStats {
+    pub document_count: usize,
+    pub chunk_count: usize,
+    pub embedding_dimensions: Vec<usize>,
+}
