@@ -69,7 +69,7 @@ impl SqliteKnowledgeStore {
                 let metadata_json: String = row.get(4)?;
                 let metadata = serde_json::from_str(&metadata_json).map_err(|error| {
                     rusqlite::Error::FromSqlConversionFailure(
-                        metadata_json.len(),
+                        4,
                         rusqlite::types::Type::Text,
                         Box::new(error),
                     )
@@ -118,12 +118,12 @@ impl KnowledgeStore for SqliteKnowledgeStore {
                         embedding = excluded.embedding,
                         embedding_dimensions = excluded.embedding_dimensions",
                     params![
-                        embedded.chunk.id,
-                        embedded.chunk.document_id,
+                        &embedded.chunk.id,
+                        &embedded.chunk.document_id,
                         embedded.chunk.ordinal as i64,
-                        embedded.chunk.text,
-                        metadata_json,
-                        embedding,
+                        &embedded.chunk.text,
+                        &metadata_json,
+                        &embedding,
                         embedded.embedding.len() as i64,
                     ],
                 )
@@ -131,13 +131,13 @@ impl KnowledgeStore for SqliteKnowledgeStore {
             transaction
                 .execute(
                     "DELETE FROM knowledge_chunks_fts WHERE id = ?1",
-                    params![embedded.chunk.id],
+                    params![&embedded.chunk.id],
                 )
                 .map_err(storage_error)?;
             transaction
                 .execute(
                     "INSERT INTO knowledge_chunks_fts (id, text) VALUES (?1, ?2)",
-                    params![embedded.chunk.id, embedded.chunk.text],
+                    params![&embedded.chunk.id, &embedded.chunk.text],
                 )
                 .map_err(storage_error)?;
         }
@@ -162,7 +162,7 @@ impl KnowledgeStore for SqliteKnowledgeStore {
                 let metadata_json: String = row.get(4)?;
                 let metadata = serde_json::from_str(&metadata_json).map_err(|error| {
                     rusqlite::Error::FromSqlConversionFailure(
-                        metadata_json.len(),
+                        4,
                         rusqlite::types::Type::Text,
                         Box::new(error),
                     )
