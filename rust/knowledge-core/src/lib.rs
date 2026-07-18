@@ -15,4 +15,4 @@ pub use model::{Document, DocumentChunk, EmbeddedChunk, SearchHit};
 pub use pipeline::{DocumentExtractor, Embedder, KnowledgePipeline, Reranker};
 #[cfg(feature = "sqlite")]
 pub use sqlite_store::SqliteKnowledgeStore;
-pub use store::{InMemoryKnowledgeStore, KnowledgeStore};
+pub use store::{HybridKnowledgeStore, InMemoryKnowledgeStore, KnowledgeStore};
