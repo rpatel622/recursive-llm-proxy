@@ -8,6 +8,7 @@ import time
 import uuid
 from typing import Any, AsyncIterator, Dict, Optional
 
+import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import StreamingResponse
 
@@ -17,6 +18,7 @@ from rlm.errors import RLMError
 from .adapter import forwarded_llm_kwargs, split_query_context
 from .config import Settings, get_settings
 from .ingestion import preprocess_dump, should_preprocess
+from .knowledge import combine_context, retrieve_knowledge
 from .metrics import metrics
 from .models import ChatCompletionRequest, IngestionOptions, SlotCatalog
 from .routing import (
@@ -60,12 +62,15 @@ def _completion_payload(
     stats: Dict[str, Any],
     routing: Optional[Dict[str, Any]] = None,
     ingestion: Optional[Dict[str, Any]] = None,
+    knowledge: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     metadata: Dict[str, Any] = {"stats": stats}
     if routing is not None:
         metadata["routing"] = routing
     if ingestion is not None:
         metadata["ingestion"] = ingestion
+    if knowledge is not None:
+        metadata["knowledge"] = knowledge
     return {
         "id": request_id,
         "object": "chat.completion",
@@ -97,6 +102,7 @@ async def _single_chunk_stream(payload: Dict[str, Any]) -> AsyncIterator[bytes]:
                 "finish_reason": None,
             }
         ],
+        "rlm": payload.get("rlm", {}),
     }
     yield f"data: {json.dumps(chunk, separators=(',', ':'))}\n\n".encode()
     final_chunk = {
@@ -111,7 +117,7 @@ async def _single_chunk_stream(payload: Dict[str, Any]) -> AsyncIterator[bytes]:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="recursive-llm OpenAI proxy", version="0.4.0")
+    app = FastAPI(title="recursive-llm OpenAI proxy", version="0.5.0")
 
     @app.get("/healthz")
     async def healthz() -> Dict[str, str]:
@@ -205,9 +211,7 @@ def create_app() -> FastAPI:
                     detail={"message": str(exc), "type": "ingestion_error"},
                 ) from exc
             query = ingested.query
-            message_context = "\n\n".join(
-                part for part in (ingested.context, message_context) if part
-            )
+            message_context = combine_context(ingested.context, message_context)
             ingestion_metadata = ingested.metadata
 
         route_metadata: Optional[Dict[str, Any]] = None
@@ -262,7 +266,62 @@ def create_app() -> FastAPI:
                 return payload
             routed_context = build_routed_context(catalog, decision)
 
-        context = "\n\n".join(part for part in (routed_context, message_context) if part)
+        knowledge_context = ""
+        knowledge_metadata: Optional[Dict[str, Any]] = None
+        knowledge_options = options.knowledge if options and options.knowledge else None
+        knowledge_enabled = settings.knowledge_api_base is not None and (
+            knowledge_options is None or knowledge_options.enabled
+        )
+        if knowledge_enabled and settings.knowledge_api_base is not None:
+            candidate_limit = (
+                knowledge_options.candidate_limit
+                if knowledge_options and knowledge_options.candidate_limit is not None
+                else settings.knowledge_candidate_limit
+            )
+            result_limit = (
+                knowledge_options.limit
+                if knowledge_options and knowledge_options.limit is not None
+                else settings.knowledge_result_limit
+            )
+            max_context_chars = (
+                knowledge_options.max_context_chars
+                if knowledge_options and knowledge_options.max_context_chars is not None
+                else settings.knowledge_max_context_chars
+            )
+            rerank = knowledge_options.rerank if knowledge_options else True
+            required = knowledge_options.required if knowledge_options else False
+            try:
+                retrieved = await retrieve_knowledge(
+                    api_base=settings.knowledge_api_base,
+                    query=query,
+                    candidate_limit=candidate_limit,
+                    limit=result_limit,
+                    rerank=rerank,
+                    max_context_chars=max_context_chars,
+                    timeout_seconds=settings.knowledge_timeout_seconds,
+                )
+                knowledge_context = retrieved.context
+                knowledge_metadata = {
+                    "status": "ok",
+                    "hit_count": len(retrieved.hits),
+                    "citations": retrieved.citations,
+                }
+            except (httpx.HTTPError, ValueError) as exc:
+                knowledge_metadata = {"status": "unavailable", "error": str(exc)}
+                if required:
+                    metrics.record(
+                        request_id=request_id,
+                        status="error",
+                        latency_ms=(time.perf_counter() - started) * 1000,
+                        routing=route_metadata,
+                        error=str(exc),
+                    )
+                    raise HTTPException(
+                        status_code=502,
+                        detail={"message": str(exc), "type": "knowledge_error"},
+                    ) from exc
+
+        context = combine_context(routed_context, knowledge_context, message_context)
         rlm = RLM(
             model=settings.model,
             recursive_model=settings.recursive_model,
@@ -322,6 +381,7 @@ def create_app() -> FastAPI:
             result.stats,
             route_metadata,
             ingestion_metadata,
+            knowledge_metadata,
         )
         metrics.record(
             request_id=request_id,
