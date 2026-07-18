@@ -6,6 +6,8 @@ mod error;
 mod model;
 mod pipeline;
 #[cfg(feature = "sqlite")]
+mod sqlite_hybrid_store;
+#[cfg(feature = "sqlite")]
 mod sqlite_store;
 mod store;
 
