@@ -8,6 +8,15 @@ pub trait KnowledgeStore: Send + Sync {
     fn vector_search(&self, query: &[f32], limit: usize) -> Result<Vec<SearchHit>>;
 }
 
+pub trait HybridKnowledgeStore: KnowledgeStore {
+    fn hybrid_search(
+        &self,
+        text_query: &str,
+        vector_query: &[f32],
+        limit: usize,
+    ) -> Result<Vec<SearchHit>>;
+}
+
 #[derive(Default)]
 pub struct InMemoryKnowledgeStore {
     chunks: RwLock<Vec<EmbeddedChunk>>,
