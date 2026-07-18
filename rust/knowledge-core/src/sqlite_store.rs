@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -6,6 +7,9 @@ use rusqlite::{params, Connection};
 
 use crate::store::cosine_similarity;
 use crate::{DocumentChunk, EmbeddedChunk, KnowledgeError, KnowledgeStore, Result, SearchHit};
+
+const DEFAULT_RRF_K: usize = 60;
+const DEFAULT_CANDIDATE_MULTIPLIER: usize = 4;
 
 pub struct SqliteKnowledgeStore {
     connection: Mutex<Connection>,
@@ -90,6 +94,27 @@ impl SqliteKnowledgeStore {
 
         rows.collect::<std::result::Result<Vec<_>, _>>()
             .map_err(storage_error)
+    }
+
+    pub fn hybrid_search(
+        &self,
+        text_query: &str,
+        vector_query: &[f32],
+        limit: usize,
+    ) -> Result<Vec<SearchHit>> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+
+        let candidate_limit = limit.saturating_mul(DEFAULT_CANDIDATE_MULTIPLIER).max(limit);
+        let lexical_hits = self.lexical_search(text_query, candidate_limit)?;
+        let vector_hits = self.vector_search(vector_query, candidate_limit)?;
+        Ok(fuse_ranked_lists(
+            lexical_hits,
+            vector_hits,
+            limit,
+            DEFAULT_RRF_K,
+        ))
     }
 }
 
@@ -193,9 +218,53 @@ impl KnowledgeStore for SqliteKnowledgeStore {
                 .score
                 .partial_cmp(&left.score)
                 .unwrap_or(Ordering::Equal)
+                .then_with(|| left.chunk.id.cmp(&right.chunk.id))
         });
         hits.truncate(limit);
         Ok(hits)
+    }
+}
+
+fn fuse_ranked_lists(
+    lexical_hits: Vec<SearchHit>,
+    vector_hits: Vec<SearchHit>,
+    limit: usize,
+    rrf_k: usize,
+) -> Vec<SearchHit> {
+    let mut fused: HashMap<String, SearchHit> = HashMap::new();
+
+    for (rank, hit) in lexical_hits.into_iter().enumerate() {
+        add_rrf_score(&mut fused, hit, rank, rrf_k);
+    }
+    for (rank, hit) in vector_hits.into_iter().enumerate() {
+        add_rrf_score(&mut fused, hit, rank, rrf_k);
+    }
+
+    let mut hits: Vec<SearchHit> = fused.into_values().collect();
+    hits.sort_by(|left, right| {
+        right
+            .score
+            .partial_cmp(&left.score)
+            .unwrap_or(Ordering::Equal)
+            .then_with(|| left.chunk.id.cmp(&right.chunk.id))
+    });
+    hits.truncate(limit);
+    hits
+}
+
+fn add_rrf_score(
+    fused: &mut HashMap<String, SearchHit>,
+    mut hit: SearchHit,
+    rank: usize,
+    rrf_k: usize,
+) {
+    let contribution = 1.0 / (rrf_k + rank + 1) as f32;
+    match fused.get_mut(&hit.chunk.id) {
+        Some(existing) => existing.score += contribution,
+        None => {
+            hit.score = contribution;
+            fused.insert(hit.chunk.id.clone(), hit);
+        }
     }
 }
 
@@ -277,5 +346,51 @@ mod tests {
             .upsert(vec![embedded("chunk", "text", vec![1.0])])
             .unwrap();
         assert!(store.vector_search(&[1.0, 0.0], 10).unwrap().is_empty());
+    }
+
+    #[test]
+    fn hybrid_search_rewards_candidates_present_in_both_rankings() {
+        let store = SqliteKnowledgeStore::in_memory().unwrap();
+        store
+            .upsert(vec![
+                embedded("both", "needle rust", vec![0.8, 0.2]),
+                embedded("vector-only", "semantic candidate", vec![1.0, 0.0]),
+                embedded("lexical-only", "needle exact", vec![0.0, 1.0]),
+            ])
+            .unwrap();
+
+        let hits = store.hybrid_search("needle", &[1.0, 0.0], 3).unwrap();
+
+        assert_eq!(hits[0].chunk.id, "both");
+        assert_eq!(hits.len(), 3);
+        assert!(hits[0].score > hits[1].score);
+    }
+
+    #[test]
+    fn hybrid_search_handles_single_modality_and_zero_limit() {
+        let store = SqliteKnowledgeStore::in_memory().unwrap();
+        store
+            .upsert(vec![embedded("rust", "rust exact", vec![1.0, 0.0])])
+            .unwrap();
+
+        assert_eq!(store.hybrid_search("", &[1.0, 0.0], 1).unwrap().len(), 1);
+        assert_eq!(store.hybrid_search("rust", &[], 1).unwrap().len(), 1);
+        assert!(store.hybrid_search("rust", &[1.0, 0.0], 0).unwrap().is_empty());
+    }
+
+    #[test]
+    fn reciprocal_rank_fusion_deduplicates_and_applies_limit() {
+        let chunk = embedded("same", "same", vec![1.0]).chunk;
+        let lexical = vec![SearchHit {
+            chunk: chunk.clone(),
+            score: 10.0,
+        }];
+        let vector = vec![SearchHit { chunk, score: 1.0 }];
+
+        let hits = fuse_ranked_lists(lexical, vector, 1, 60);
+
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].chunk.id, "same");
+        assert!(hits[0].score > 1.0 / 61.0);
     }
 }
