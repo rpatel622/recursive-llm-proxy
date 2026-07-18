@@ -99,14 +99,11 @@ fn apply_rerank_scores(
     let mut reranked = Vec::new();
 
     for (index, score) in scores {
-        let hit = slots
-            .get_mut(index)
-            .and_then(Option::take)
-            .ok_or_else(|| {
-                KnowledgeError::Embedding(format!(
-                    "reranker returned invalid or duplicate document index {index}"
-                ))
-            })?;
+        let hit = slots.get_mut(index).and_then(Option::take).ok_or_else(|| {
+            KnowledgeError::Embedding(format!(
+                "reranker returned invalid or duplicate document index {index}"
+            ))
+        })?;
         reranked.push(SearchHit { score, ..hit });
         if reranked.len() == limit {
             break;
