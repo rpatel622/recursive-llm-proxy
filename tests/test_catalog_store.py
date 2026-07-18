@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
 import pytest
 
@@ -15,7 +16,7 @@ from rlm_proxy.models import (
 )
 
 
-def _catalog(version: int | None = None) -> SlotCatalog:
+def _catalog(version: Optional[int] = None) -> SlotCatalog:
     return SlotCatalog(
         version=version,
         slots=[
