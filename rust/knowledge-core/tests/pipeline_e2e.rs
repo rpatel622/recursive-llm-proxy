@@ -111,7 +111,10 @@ async fn real_fastembed_smoke_test() {
         .with_show_download_progress(false)
         .with_intra_threads(1);
     let embedder = FastEmbedEmbedder::try_new(options, Some(1)).unwrap();
-    let vectors = embedder.embed(&["local recursive language model".into()]).await.unwrap();
+    let vectors = embedder
+        .embed(&["local recursive language model".into()])
+        .await
+        .unwrap();
 
     assert_eq!(vectors.len(), 1);
     assert!(!vectors[0].is_empty());
