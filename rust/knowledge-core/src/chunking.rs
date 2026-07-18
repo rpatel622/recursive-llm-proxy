@@ -99,8 +99,14 @@ mod tests {
         let chunks = FixedWindowChunker::new(6, 2).chunk(&document());
         let metadata = &chunks[0].metadata;
 
-        assert_eq!(metadata.get("source_uri").map(String::as_str), Some("memory://doc.txt"));
-        assert_eq!(metadata.get("media_type").map(String::as_str), Some("text/plain"));
+        assert_eq!(
+            metadata.get("source_uri").map(String::as_str),
+            Some("memory://doc.txt")
+        );
+        assert_eq!(
+            metadata.get("media_type").map(String::as_str),
+            Some("text/plain")
+        );
         assert_eq!(metadata.get("title").map(String::as_str), Some("doc.txt"));
     }
 }
