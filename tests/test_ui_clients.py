@@ -7,7 +7,7 @@ import pytest
 pytest.importorskip("fastapi")
 httpx = pytest.importorskip("httpx")
 
-from rlm_proxy.ui_clients import (
+from rlm_proxy.ui_clients import (  # noqa: E402
     ApiClientConfig,
     CatalogApiClient,
     KnowledgeApiClient,
