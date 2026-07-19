@@ -49,6 +49,7 @@ class SlotCatalog(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     slots: List[SlotDefinition]
+    version: Optional[int] = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def unique_slots(self) -> "SlotCatalog":
