@@ -1,0 +1,30 @@
+name: Evaluation baseline
+
+on:
+  pull_request:
+    paths:
+      - "evaluation/**"
+      - "tests/test_evaluation_harness.py"
+      - ".github/workflows/evaluation.yml"
+  push:
+    branches: [main]
+    paths:
+      - "evaluation/**"
+      - "tests/test_evaluation_harness.py"
+      - ".github/workflows/evaluation.yml"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python evaluation/harness.py evaluation/fixtures/smoke-v1.json evaluation/fixtures/smoke-results.json --output evaluation-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evaluation-report
+          path: evaluation-report.json

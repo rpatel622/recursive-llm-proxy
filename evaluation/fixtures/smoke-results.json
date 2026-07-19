@@ -1,0 +1,13 @@
+{
+  "route-production": {
+    "slot_slug": "engineering",
+    "workstream_slugs": ["deployment-prod"]
+  },
+  "retrieve-rollback": {
+    "document_ids": ["runbook-prod"]
+  },
+  "ground-rollback": {
+    "citation_ids": ["runbook-prod#3"],
+    "answer": "Use the blue-green rollback path."
+  }
+}
