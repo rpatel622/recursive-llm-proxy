@@ -6,7 +6,6 @@ import argparse
 import base64
 import json
 import os
-import resource
 import statistics
 import time
 from dataclasses import asdict, dataclass
@@ -14,6 +13,11 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import httpx
+
+try:
+    import resource
+except ImportError:  # pragma: no cover - Windows has no resource module
+    resource = None  # type: ignore[assignment]
 
 BASELINE_VERSION = 1
 
@@ -65,6 +69,12 @@ def _timed_request(client: httpx.Client, method: str, url: str, **kwargs: Any) -
     elapsed_ms = (time.perf_counter() - started) * 1000.0
     response.raise_for_status()
     return elapsed_ms, response.json()
+
+
+def _peak_rss_kib() -> int:
+    if resource is None:
+        return 0
+    return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
 
 
 def profile(
@@ -135,7 +145,7 @@ def profile(
         corpus_documents=len(files),
         corpus_bytes=corpus_bytes,
         database_bytes=database_bytes,
-        process_peak_rss_kib=int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
+        process_peak_rss_kib=_peak_rss_kib(),
         ingestion=summarize(ingestion_samples),
         search_without_rerank=summarize(no_rerank_samples),
         search_with_rerank=summarize(rerank_samples),
