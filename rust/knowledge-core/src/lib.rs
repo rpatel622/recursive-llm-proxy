@@ -10,6 +10,7 @@ mod sqlite_hybrid_store;
 #[cfg(feature = "sqlite")]
 mod sqlite_store;
 mod store;
+mod sync;
 
 pub use chunking::{Chunker, FixedWindowChunker};
 pub use error::{KnowledgeError, Result};
@@ -20,3 +21,4 @@ pub use pipeline::{DocumentExtractor, Embedder, KnowledgePipeline, Reranker};
 #[cfg(feature = "sqlite")]
 pub use sqlite_store::SqliteKnowledgeStore;
 pub use store::{HybridKnowledgeStore, InMemoryKnowledgeStore, KnowledgeStore};
+pub use sync::{SourceFingerprint, SyncAction, SyncEntry, SyncManifest};
