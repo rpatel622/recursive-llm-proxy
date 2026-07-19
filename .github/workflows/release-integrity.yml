@@ -1,0 +1,38 @@
+name: Release integrity
+
+on:
+  pull_request:
+    paths:
+      - "src/rlm_proxy/release_manifest.py"
+      - "src/rlm_proxy/release_manifest_cli.py"
+      - "pyproject.toml"
+      - ".github/workflows/release-integrity.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - name: Generate release manifest
+        shell: bash
+        run: |
+          mapfile -t files < <(find dist -maxdepth 1 -type f -printf '%f\n' | sort)
+          python -m rlm_proxy.release_manifest_cli generate dist dist/release-manifest.json "${files[@]}"
+        env:
+          PYTHONPATH: src
+      - name: Verify release manifest
+        run: python -m rlm_proxy.release_manifest_cli verify dist dist/release-manifest.json
+        env:
+          PYTHONPATH: src
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-release-artifacts
+          path: dist/
