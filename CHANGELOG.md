@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.3.0rc1] - 2026-07-19
+
+### Added
+
+- Durable conversation memory with deterministic rolling compaction.
+- Native knowledge ingestion, scoped retrieval, synchronization, and query caching.
+- Authenticated administrative control plane with scoped API keys, rate limits, readiness, and audit records.
+- Managed runtime recovery, diagnostics bundles, and aggregate stack health.
+- Catalog import, export, backup, optimistic mutations, and management interfaces.
+- Blocking evaluation quality gates and deterministic release-artifact manifests.
+- Supported process commands: `rlm-proxy`, `rlm-memory`, `rlm-control`, `rlm-proxy-ui`, `rlm-management-ui`, and `rlm-cowork`.
+
+### RC validation requirements
+
+- Full Python, Rust, evaluation, release-integrity, and end-to-end workflows must pass on the release commit.
+- Wheel and source distributions must install in clean Linux, macOS, and Windows environments.
+- Catalog, knowledge, jobs, and conversation databases must survive restart and backup/restore smoke tests.
+- The release manifest must verify before artifacts are promoted.
+
 ## [0.2.0] - 2026-07-15
 
 ### Migration notes
@@ -49,5 +68,6 @@ All notable changes to this project are documented in this file.
 
 - Initial public release.
 
+[0.3.0rc1]: https://github.com/rpatel622/recursive-llm-proxy/compare/v0.2.0...v0.3.0rc1
 [0.2.0]: https://github.com/grishahq/recursive-llm/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/grishahq/recursive-llm/releases/tag/v0.1.0
