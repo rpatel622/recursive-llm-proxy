@@ -23,6 +23,7 @@ class ProxyLaunchConfig:
     recursive_model: str
     max_depth: int
     max_iterations: int
+    knowledge_api_base: Optional[str] = None
 
     @property
     def url(self) -> str:
@@ -36,6 +37,10 @@ class ProxyLaunchConfig:
             raise ValueError("Proxy port must be between 1 and 65535")
         if not self.private_api_base.startswith(("http://", "https://")):
             raise ValueError("Private API base must begin with http:// or https://")
+        if self.knowledge_api_base is not None and not self.knowledge_api_base.startswith(
+            ("http://", "https://")
+        ):
+            raise ValueError("Knowledge API base must begin with http:// or https://")
         if not self.model.strip():
             raise ValueError("Model is required")
         if self.max_depth < 0:
@@ -53,6 +58,9 @@ class ProxyLaunchConfig:
             "RLM_PROXY_RECURSIVE_MODEL": self.recursive_model or self.model,
             "RLM_PROXY_MAX_DEPTH": str(self.max_depth),
             "RLM_PROXY_MAX_ITERATIONS": str(self.max_iterations),
+            "RLM_PROXY_KNOWLEDGE_API_BASE": (
+                self.knowledge_api_base.rstrip("/") if self.knowledge_api_base else ""
+            ),
         }
         for key, value in values.items():
             if value:
