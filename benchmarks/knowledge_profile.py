@@ -63,7 +63,12 @@ def summarize(samples_ms: Iterable[float]) -> TimingSummary:
     )
 
 
-def _timed_request(client: httpx.Client, method: str, url: str, **kwargs: Any) -> tuple[float, Any]:
+def _timed_request(
+    client: httpx.Client,
+    method: str,
+    url: str,
+    **kwargs: Any,
+) -> tuple[float, Any]:
     started = time.perf_counter()
     response = client.request(method, url, **kwargs)
     elapsed_ms = (time.perf_counter() - started) * 1000.0
@@ -167,7 +172,10 @@ def _media_type(path: Path) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Profile the native knowledge service")
-    parser.add_argument("--api-base", default=os.getenv("RLM_KNOWLEDGE_API_BASE", "http://127.0.0.1:8010"))
+    parser.add_argument(
+        "--api-base",
+        default=os.getenv("RLM_KNOWLEDGE_API_BASE", "http://127.0.0.1:8010"),
+    )
     parser.add_argument("--corpus", type=Path, required=True)
     parser.add_argument("--query", action="append", dest="queries", required=True)
     parser.add_argument("--database", type=Path)
