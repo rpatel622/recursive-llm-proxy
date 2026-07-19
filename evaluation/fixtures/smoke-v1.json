@@ -1,0 +1,29 @@
+{
+  "fixture_version": 1,
+  "cases": [
+    {
+      "id": "route-production",
+      "category": "routing",
+      "expected": {
+        "slot_slug": "engineering",
+        "workstream_slugs": ["deployment-prod"]
+      }
+    },
+    {
+      "id": "retrieve-rollback",
+      "category": "retrieval",
+      "minimum_score": 1.0,
+      "expected": {
+        "document_ids": ["runbook-prod"]
+      }
+    },
+    {
+      "id": "ground-rollback",
+      "category": "grounding",
+      "expected": {
+        "citation_ids": ["runbook-prod#3"],
+        "answer_contains": ["blue-green"]
+      }
+    }
+  ]
+}
