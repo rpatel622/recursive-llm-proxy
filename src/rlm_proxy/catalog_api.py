@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Literal, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -16,7 +16,7 @@ class AppendTurnRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    role: str
+    role: Literal["system", "developer", "user", "assistant", "tool"]
     content: str = Field(min_length=1)
     expected_version: Optional[int] = Field(default=None, ge=0)
 
@@ -38,12 +38,19 @@ def _expected_version(body_version: Optional[int], if_match: Optional[str]) -> O
     try:
         return int(value)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail={"message": "If-Match must be an integer"}) from exc
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "If-Match must be an integer"},
+        ) from exc
 
 
 def _mutation_error(exc: ValueError) -> HTTPException:
     message = str(exc)
-    code = status.HTTP_409_CONFLICT if "version conflict" in message else status.HTTP_404_NOT_FOUND
+    code = (
+        status.HTTP_409_CONFLICT
+        if "version conflict" in message
+        else status.HTTP_404_NOT_FOUND
+    )
     return HTTPException(status_code=code, detail={"message": message})
 
 
