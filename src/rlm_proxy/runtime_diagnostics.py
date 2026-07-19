@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import json
-import shutil
 import time
 import zipfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, Optional
 
 
 @dataclass(frozen=True)
@@ -23,7 +22,7 @@ class RestartPolicy:
             raise ValueError("restart attempt must be at least one")
         return min(self.maximum_delay_seconds, self.base_delay_seconds * (2 ** (attempt - 1)))
 
-    def permits(self, restart_times: Iterable[float], now: float | None = None) -> bool:
+    def permits(self, restart_times: Iterable[float], now: Optional[float] = None) -> bool:
         current = time.monotonic() if now is None else now
         recent = [value for value in restart_times if current - value <= self.window_seconds]
         return len(recent) < self.max_attempts
