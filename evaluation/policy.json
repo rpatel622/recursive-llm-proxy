@@ -1,0 +1,6 @@
+{
+  "gate_version": 1,
+  "minimum_mean_score": 0.9,
+  "minimum_pass_rate": 0.9,
+  "maximum_mean_score_drop": 0.02
+}
