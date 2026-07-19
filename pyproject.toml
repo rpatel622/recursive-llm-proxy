@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "recursive-llm"
-version = "0.2.0"
+version = "0.3.0rc1"
 description = "OpenAI-compatible Recursive Language Model proxy with context-slot routing and local browser interfaces"
 authors = [{name = "Grigori Gvadzabia"}]
 readme = "README.md"
@@ -12,7 +12,7 @@ requires-python = ">=3.9"
 license = "MIT"
 keywords = ["llm", "ai", "nlp", "recursive", "language-models", "openai-proxy", "llama-cpp", "gradio", "open-webui"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
@@ -61,8 +61,11 @@ Upstream = "https://github.com/grishahq/recursive-llm"
 Changelog = "https://github.com/rpatel622/recursive-llm-proxy/blob/main/CHANGELOG.md"
 
 [project.scripts]
-rlm-proxy = "rlm_proxy.cli:main"
+rlm-proxy = "rlm_proxy.entrypoints:proxy_main"
+rlm-memory = "rlm_proxy.entrypoints:memory_main"
+rlm-control = "rlm_proxy.entrypoints:control_main"
 rlm-proxy-ui = "rlm_proxy.ui:main"
+rlm-management-ui = "rlm_proxy.management_ui:main"
 rlm-cowork = "rlm_proxy.cowork:main"
 
 [tool.setuptools.packages.find]
