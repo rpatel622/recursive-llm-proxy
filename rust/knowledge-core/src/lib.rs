@@ -5,6 +5,7 @@ mod chunking;
 mod error;
 mod model;
 mod pipeline;
+mod scope;
 #[cfg(feature = "sqlite")]
 mod sqlite_hybrid_store;
 #[cfg(feature = "sqlite")]
@@ -18,6 +19,10 @@ pub use model::{
     Document, DocumentChunk, EmbeddedChunk, KnowledgeDocumentSummary, KnowledgeStats, SearchHit,
 };
 pub use pipeline::{DocumentExtractor, Embedder, KnowledgePipeline, Reranker};
+pub use scope::{
+    ExactScopedAdapter, KnowledgeScope, ScopedKnowledgeStore, COLLECTION_METADATA_KEY,
+    NAMESPACE_METADATA_KEY,
+};
 #[cfg(feature = "sqlite")]
 pub use sqlite_store::SqliteKnowledgeStore;
 pub use store::{HybridKnowledgeStore, InMemoryKnowledgeStore, KnowledgeStore};
