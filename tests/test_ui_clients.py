@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+pytest.importorskip("fastapi")
 httpx = pytest.importorskip("httpx")
 
 from rlm_proxy.ui_clients import (
