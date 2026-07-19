@@ -1,4 +1,3 @@
-import shutil
 import sqlite3
 from pathlib import Path
 
@@ -23,7 +22,7 @@ def test_catalog_backup_restores_version_and_data(tmp_path: Path) -> None:
     assert restored.model_dump() == expected.model_dump()
 
 
-def test_memory_database_survives_copy_restore(tmp_path: Path) -> None:
+def test_memory_database_survives_online_backup_restore(tmp_path: Path) -> None:
     source = tmp_path / "memory.sqlite3"
     restored_path = tmp_path / "memory-restored.sqlite3"
     store = ConversationMemoryStore(str(source))
@@ -31,7 +30,10 @@ def test_memory_database_survives_copy_restore(tmp_path: Path) -> None:
     snapshot = store.append("conversation", "user", "hello", snapshot.revision)
     store.append("conversation", "assistant", "world", snapshot.revision)
 
-    shutil.copy2(source, restored_path)
+    with sqlite3.connect(source) as source_connection:
+        with sqlite3.connect(restored_path) as restored_connection:
+            source_connection.backup(restored_connection)
+
     restored = ConversationMemoryStore(str(restored_path)).get("conversation")
 
     assert [message.content for message in restored.messages] == ["hello", "world"]
