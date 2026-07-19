@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Sequence, Set
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 
 FIXTURE_VERSION = 1
 
@@ -106,7 +106,9 @@ def evaluate_case(case: Dict[str, Any], actual: Dict[str, Any]) -> CaseResult:
     return CaseResult(str(case["id"]), category, passed, score, details)
 
 
-def evaluate(fixture: Dict[str, Any], actual_results: Dict[str, Dict[str, Any]]) -> EvaluationReport:
+def evaluate(
+    fixture: Dict[str, Any], actual_results: Dict[str, Dict[str, Any]]
+) -> EvaluationReport:
     results = [
         evaluate_case(case, actual_results.get(str(case["id"]), {}))
         for case in fixture["cases"]
@@ -128,8 +130,10 @@ def _load_actual(path: Path) -> Dict[str, Dict[str, Any]]:
     return {str(key): dict(item) for key, item in value.items()}
 
 
-def main(argv: Iterable[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Evaluate routing, retrieval, and grounding results")
+def main(argv: Optional[Iterable[str]] = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Evaluate routing, retrieval, and grounding results"
+    )
     parser.add_argument("fixture", type=Path)
     parser.add_argument("actual", type=Path)
     parser.add_argument("--output", type=Path)
