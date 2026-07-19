@@ -1,6 +1,7 @@
 //! Stable interfaces for the native Local RLM knowledge pipeline.
 
 pub mod adapters;
+mod ann;
 mod chunking;
 mod error;
 mod model;
@@ -13,6 +14,7 @@ mod sqlite_store;
 mod store;
 mod sync;
 
+pub use ann::{ApproximateKnowledgeStore, ExactAnnAdapter};
 pub use chunking::{Chunker, FixedWindowChunker};
 pub use error::{KnowledgeError, Result};
 pub use model::{
