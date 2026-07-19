@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import httpx
 import pytest
+
+httpx = pytest.importorskip("httpx")
 
 from rlm_proxy.ui_clients import (
     ApiClientConfig,
@@ -34,15 +35,24 @@ def test_catalog_client_raises_version_conflict() -> None:
             json={"detail": {"message": "catalog version conflict"}},
         )
     )
-    client = CatalogApiClient(ApiClientConfig("http://test"), httpx.Client(transport=transport))
+    client = CatalogApiClient(
+        ApiClientConfig("http://test"),
+        httpx.Client(transport=transport),
+    )
     with pytest.raises(VersionConflictError, match="version conflict"):
         client.delete_workstream("slot", "stream", 1)
 
 
 def test_knowledge_client_maps_server_failure() -> None:
     transport = httpx.MockTransport(
-        lambda request: httpx.Response(503, json={"error": {"message": "offline"}})
+        lambda request: httpx.Response(
+            503,
+            json={"error": {"message": "offline"}},
+        )
     )
-    client = KnowledgeApiClient(ApiClientConfig("http://test"), httpx.Client(transport=transport))
+    client = KnowledgeApiClient(
+        ApiClientConfig("http://test"),
+        httpx.Client(transport=transport),
+    )
     with pytest.raises(ServiceUnavailableError, match="offline"):
         client.health()
