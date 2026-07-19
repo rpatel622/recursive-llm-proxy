@@ -4,15 +4,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
+import rlm_proxy.routing as routing
 from rlm_proxy.app import create_app
 from rlm_proxy.catalog_store import SlotRegistry
 from rlm_proxy.models import SlotCatalog, SlotDefinition, WorkstreamDefinition
-import rlm_proxy.routing as routing
 
 
-def _client(tmp_path: Path, monkeypatch: object) -> TestClient:
+def _client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     registry = SlotRegistry(str(tmp_path / "catalog.sqlite3"))
     registry.replace(
         SlotCatalog(
@@ -24,12 +27,14 @@ def _client(tmp_path: Path, monkeypatch: object) -> TestClient:
             ]
         )
     )
-    setattr(routing, "registry", registry)
+    monkeypatch.setattr(routing, "registry", registry)
     monkeypatch.setattr("rlm_proxy.catalog_api.registry", registry)
     return TestClient(create_app())
 
 
-def test_append_turn_returns_new_version(tmp_path: Path, monkeypatch: object) -> None:
+def test_append_turn_returns_new_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     client = _client(tmp_path, monkeypatch)
     response = client.post(
         "/v1/rlm/slots/engineering/workstreams/deployment/turns",
@@ -38,11 +43,14 @@ def test_append_turn_returns_new_version(tmp_path: Path, monkeypatch: object) ->
 
     assert response.status_code == 200
     assert response.json()["version"] == 2
-    assert response.json()["slots"][0]["workstreams"][0]["turns"][0]["content"] == "Ship the release"
+    turns = response.json()["slots"][0]["workstreams"][0]["turns"]
+    assert turns[0]["content"] == "Ship the release"
     assert response.headers["etag"] == '"2"'
 
 
-def test_append_turn_rejects_stale_version(tmp_path: Path, monkeypatch: object) -> None:
+def test_append_turn_rejects_stale_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     client = _client(tmp_path, monkeypatch)
     response = client.post(
         "/v1/rlm/slots/engineering/workstreams/deployment/turns",
@@ -53,7 +61,9 @@ def test_append_turn_rejects_stale_version(tmp_path: Path, monkeypatch: object) 
     assert "version conflict" in response.json()["detail"]["message"]
 
 
-def test_delete_workstream_supports_if_match(tmp_path: Path, monkeypatch: object) -> None:
+def test_delete_workstream_supports_if_match(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     client = _client(tmp_path, monkeypatch)
     response = client.request(
         "DELETE",
