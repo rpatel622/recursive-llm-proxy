@@ -16,6 +16,7 @@ from rlm import RLM
 from rlm.errors import RLMError
 
 from .adapter import forwarded_llm_kwargs, split_query_context
+from .catalog_api import build_catalog_mutation_router
 from .config import Settings, get_settings
 from .ingestion import preprocess_dump, should_preprocess
 from .knowledge import combine_context, retrieve_knowledge
@@ -118,6 +119,7 @@ async def _single_chunk_stream(payload: Dict[str, Any]) -> AsyncIterator[bytes]:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="recursive-llm OpenAI proxy", version="0.5.0")
+    app.include_router(build_catalog_mutation_router(_verify_auth))
 
     @app.get("/healthz")
     async def healthz() -> Dict[str, str]:
@@ -144,8 +146,8 @@ def create_app() -> FastAPI:
     @app.put("/v1/rlm/slots", dependencies=[Depends(_verify_auth)])
     async def replace_slots(catalog: SlotCatalog) -> Dict[str, Any]:
         normalized = normalized_catalog(catalog)
-        registry.replace(normalized)
-        return normalized.model_dump()
+        stored = registry.replace(normalized, expected_version=catalog.version)
+        return normalized_catalog(stored).model_dump()
 
     @app.get("/v1/rlm/metrics", dependencies=[Depends(_verify_auth)])
     async def get_metrics() -> Dict[str, Any]:
