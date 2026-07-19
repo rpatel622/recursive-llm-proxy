@@ -1,0 +1,51 @@
+name: RC1 promotion
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Commit SHA to verify and package
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.commit }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: python -m pip install --upgrade pip build
+      - run: pip install ".[proxy,ui,dev]"
+      - run: ruff check src tests examples benchmarks
+      - run: black --check src tests examples benchmarks
+      - run: mypy src
+      - run: pytest --no-cov tests/test_rc1_system_smoke.py tests/test_rc1_persistence_restore.py
+      - run: python evaluation/harness.py evaluation/fixtures/smoke-v1.json evaluation/fixtures/smoke-results.json --output evaluation-report.json
+      - run: python evaluation/gates.py evaluation-report.json --policy evaluation/policy.json --output evaluation-gate.json
+      - run: cargo fmt --all --check
+        working-directory: rust
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        working-directory: rust
+      - run: cargo test --workspace --all-features
+        working-directory: rust
+      - run: python -m build
+      - run: python -m rlm_proxy.release_manifest_cli generate dist --output dist/release-manifest.json
+      - run: python -m rlm_proxy.release_manifest_cli verify dist/release-manifest.json --root dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: recursive-llm-0.3.0rc1-${{ inputs.commit }}
+          path: |
+            dist/*
+            evaluation-report.json
+            evaluation-gate.json
+          if-no-files-found: error
