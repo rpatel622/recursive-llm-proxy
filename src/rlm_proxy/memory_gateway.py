@@ -59,7 +59,9 @@ def create_memory_gateway() -> FastAPI:
     async def memory_chat(request: Request) -> JSONResponse:
         payload = await request.json()
         if not isinstance(payload, dict):
-            raise HTTPException(status_code=400, detail={"message": "request body must be an object"})
+            raise HTTPException(
+                status_code=400, detail={"message": "request body must be an object"}
+            )
         conversation_id = str(payload.pop("conversation_id", "") or uuid.uuid4().hex)
         try:
             snapshot = store.get(conversation_id)
@@ -89,7 +91,9 @@ def create_memory_gateway() -> FastAPI:
         authorization = request.headers.get("authorization")
         if authorization:
             headers["Authorization"] = authorization
-        async with httpx.AsyncClient(transport=transport, base_url="http://memory-gateway") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://memory-gateway"
+        ) as client:
             response = await client.post("/v1/chat/completions", json=payload, headers=headers)
         if response.status_code >= 400:
             return JSONResponse(status_code=response.status_code, content=response.json())
@@ -134,7 +138,9 @@ def create_memory_gateway() -> FastAPI:
         try:
             item = store.get(conversation_id)
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail={"message": "conversation not found"}) from exc
+            raise HTTPException(
+                status_code=404, detail={"message": "conversation not found"}
+            ) from exc
         return {
             "conversation_id": item.conversation_id,
             "revision": item.revision,

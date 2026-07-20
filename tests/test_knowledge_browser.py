@@ -26,10 +26,23 @@ class FakeKnowledgeClient:
     def list_jobs(self) -> List[Dict[str, Any]]:
         return [{"id": "job-1", "status": "running"}]
 
-    def enqueue_ingestion(self, source_uri: str, media_type: str, content_base64: str) -> Dict[str, Any]:
-        return {"source_uri": source_uri, "media_type": media_type, "content_base64": content_base64}
+    def enqueue_ingestion(
+        self, source_uri: str, media_type: str, content_base64: str
+    ) -> Dict[str, Any]:
+        return {
+            "source_uri": source_uri,
+            "media_type": media_type,
+            "content_base64": content_base64,
+        }
 
-    def search(self, query: str, candidate_limit: int = 24, limit: int = 6, rerank: bool = True, max_context_chars: int = 24000) -> Dict[str, Any]:
+    def search(
+        self,
+        query: str,
+        candidate_limit: int = 24,
+        limit: int = 6,
+        rerank: bool = True,
+        max_context_chars: int = 24000,
+    ) -> Dict[str, Any]:
         return {"query": query, "limit": limit}
 
     def cancel_job(self, job_id: str) -> Dict[str, Any]:

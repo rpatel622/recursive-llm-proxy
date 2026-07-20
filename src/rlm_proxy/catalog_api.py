@@ -46,11 +46,7 @@ def _expected_version(body_version: Optional[int], if_match: Optional[str]) -> O
 
 def _mutation_error(exc: ValueError) -> HTTPException:
     message = str(exc)
-    code = (
-        status.HTTP_409_CONFLICT
-        if "version conflict" in message
-        else status.HTTP_404_NOT_FOUND
-    )
+    code = status.HTTP_409_CONFLICT if "version conflict" in message else status.HTTP_404_NOT_FOUND
     return HTTPException(status_code=code, detail={"message": message})
 
 

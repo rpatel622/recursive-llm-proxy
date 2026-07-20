@@ -24,7 +24,9 @@ def export_catalog(registry: SlotRegistry) -> bytes:
         "catalog_version": catalog.version,
         "catalog": catalog.model_dump(exclude={"version"}),
     }
-    return (json.dumps(envelope, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    return (
+        json.dumps(envelope, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
 
 
 def import_catalog(

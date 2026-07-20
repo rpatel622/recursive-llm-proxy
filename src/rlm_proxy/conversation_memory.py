@@ -213,8 +213,7 @@ class ConversationMemoryStore:
     def _check_revision(current: int, expected: Optional[int]) -> None:
         if expected is not None and expected != current:
             raise ValueError(
-                "conversation revision conflict: expected %d, current %d"
-                % (expected, current)
+                "conversation revision conflict: expected %d, current %d" % (expected, current)
             )
 
 

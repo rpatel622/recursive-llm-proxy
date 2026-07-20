@@ -39,9 +39,7 @@ def build_manifest(root: Path, relative_paths: Iterable[str]) -> Dict[str, objec
 
 
 def encode_manifest(manifest: Dict[str, object]) -> bytes:
-    return (
-        json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n"
-    ).encode("utf-8")
+    return (json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
 
 
 def verify_manifest(root: Path, manifest: Dict[str, object]) -> List[str]:

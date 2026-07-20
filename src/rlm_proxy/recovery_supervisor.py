@@ -52,7 +52,16 @@ class RecoverySupervisor:
             self._write_diagnostics(snapshot)
             return snapshot
 
-        attempt = len([value for value in self.state.restart_times if now - value <= self._policy.window_seconds]) + 1
+        attempt = (
+            len(
+                [
+                    value
+                    for value in self.state.restart_times
+                    if now - value <= self._policy.window_seconds
+                ]
+            )
+            + 1
+        )
         self._sleep(self._policy.delay_for(attempt))
         if self._log_path is not None:
             rotate_log(self._log_path, max_bytes=5_000_000, backups=3)

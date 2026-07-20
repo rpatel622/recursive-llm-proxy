@@ -13,7 +13,9 @@ from .knowledge_browser import KnowledgeBrowserController
 from .ui_clients import ApiClientConfig, CatalogApiClient, KnowledgeApiClient
 
 
-def _controllers(proxy_url: str, knowledge_url: str, api_key: str) -> Tuple[CatalogEditorController, KnowledgeBrowserController]:
+def _controllers(
+    proxy_url: str, knowledge_url: str, api_key: str
+) -> Tuple[CatalogEditorController, KnowledgeBrowserController]:
     catalog = CatalogEditorController(CatalogApiClient(ApiClientConfig(proxy_url, api_key)))
     knowledge = KnowledgeBrowserController(KnowledgeApiClient(ApiClientConfig(knowledge_url)))
     return catalog, knowledge
@@ -25,14 +27,20 @@ def refresh_catalog(proxy_url: str, api_key: str) -> Tuple[str, int]:
     return json.dumps(snapshot.slots, indent=2, ensure_ascii=False), snapshot.version
 
 
-def replace_catalog(proxy_url: str, api_key: str, slots_json: str, version: float) -> Tuple[str, int, str]:
+def replace_catalog(
+    proxy_url: str, api_key: str, slots_json: str, version: float
+) -> Tuple[str, int, str]:
     try:
         value = json.loads(slots_json)
         if not isinstance(value, list):
             raise ValueError("slots JSON must be a list")
         catalog, _ = _controllers(proxy_url, "http://127.0.0.1:8010", api_key)
         snapshot = catalog.replace(value, int(version))
-        return json.dumps(snapshot.slots, indent=2, ensure_ascii=False), snapshot.version, "Catalog saved"
+        return (
+            json.dumps(snapshot.slots, indent=2, ensure_ascii=False),
+            snapshot.version,
+            "Catalog saved",
+        )
     except Exception as exc:
         return slots_json, int(version), f"Save failed: {exc}"
 
@@ -50,7 +58,11 @@ def append_turn(
     try:
         catalog, _ = _controllers(proxy_url, "http://127.0.0.1:8010", api_key)
         snapshot = catalog.append_turn(slot_slug, workstream_slug, role, content, int(version))
-        return json.dumps(snapshot.slots, indent=2, ensure_ascii=False), snapshot.version, "Turn appended"
+        return (
+            json.dumps(snapshot.slots, indent=2, ensure_ascii=False),
+            snapshot.version,
+            "Turn appended",
+        )
     except Exception as exc:
         return slots_json, int(version), f"Append failed: {exc}"
 
@@ -98,20 +110,28 @@ def build_management_ui(
                 stats = gr.JSON(label="Statistics")
             documents = gr.JSON(label="Documents")
             jobs = gr.JSON(label="Jobs")
-            refresh.click(refresh_knowledge, inputs=[knowledge], outputs=[health, stats, documents, jobs])
+            refresh.click(
+                refresh_knowledge, inputs=[knowledge], outputs=[health, stats, documents, jobs]
+            )
 
             with gr.Row():
                 query = gr.Textbox(label="Search query")
                 limit = gr.Number(label="Results", value=6, precision=0)
                 search_button = gr.Button("Search")
             search_results = gr.JSON(label="Search results")
-            search_button.click(search_knowledge, inputs=[knowledge, query, limit], outputs=search_results)
+            search_button.click(
+                search_knowledge, inputs=[knowledge, query, limit], outputs=search_results
+            )
 
             file_input = gr.File(label="Upload document", type="filepath")
             upload_button = gr.Button("Queue ingestion")
             upload_status = gr.Textbox(label="Upload status", interactive=False)
             upload_result = gr.JSON(label="Job")
-            upload_button.click(upload_knowledge, inputs=[knowledge, file_input], outputs=[upload_status, upload_result])
+            upload_button.click(
+                upload_knowledge,
+                inputs=[knowledge, file_input],
+                outputs=[upload_status, upload_result],
+            )
 
         with gr.Tab("Catalog"):
             catalog_status = gr.Textbox(label="Status", interactive=False)
@@ -121,7 +141,11 @@ def build_management_ui(
                 load = gr.Button("Load")
                 save = gr.Button("Save", variant="primary")
             load.click(refresh_catalog, inputs=[proxy, key], outputs=[slots, version])
-            save.click(replace_catalog, inputs=[proxy, key, slots, version], outputs=[slots, version, catalog_status])
+            save.click(
+                replace_catalog,
+                inputs=[proxy, key, slots, version],
+                outputs=[slots, version, catalog_status],
+            )
 
             with gr.Row():
                 slot_slug = gr.Textbox(label="Slot slug")
