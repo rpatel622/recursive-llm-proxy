@@ -6,7 +6,6 @@ import argparse
 import base64
 import json
 import os
-import resource
 import statistics
 import time
 from dataclasses import asdict, dataclass
@@ -14,6 +13,11 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import httpx
+
+try:
+    import resource
+except ImportError:  # pragma: no cover - Windows has no resource module
+    resource = None  # type: ignore[assignment]
 
 BASELINE_VERSION = 1
 
@@ -59,12 +63,23 @@ def summarize(samples_ms: Iterable[float]) -> TimingSummary:
     )
 
 
-def _timed_request(client: httpx.Client, method: str, url: str, **kwargs: Any) -> tuple[float, Any]:
+def _timed_request(
+    client: httpx.Client,
+    method: str,
+    url: str,
+    **kwargs: Any,
+) -> tuple[float, Any]:
     started = time.perf_counter()
     response = client.request(method, url, **kwargs)
     elapsed_ms = (time.perf_counter() - started) * 1000.0
     response.raise_for_status()
     return elapsed_ms, response.json()
+
+
+def _peak_rss_kib() -> int:
+    if resource is None:
+        return 0
+    return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
 
 
 def profile(
@@ -135,7 +150,7 @@ def profile(
         corpus_documents=len(files),
         corpus_bytes=corpus_bytes,
         database_bytes=database_bytes,
-        process_peak_rss_kib=int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
+        process_peak_rss_kib=_peak_rss_kib(),
         ingestion=summarize(ingestion_samples),
         search_without_rerank=summarize(no_rerank_samples),
         search_with_rerank=summarize(rerank_samples),
@@ -157,7 +172,10 @@ def _media_type(path: Path) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Profile the native knowledge service")
-    parser.add_argument("--api-base", default=os.getenv("RLM_KNOWLEDGE_API_BASE", "http://127.0.0.1:8010"))
+    parser.add_argument(
+        "--api-base",
+        default=os.getenv("RLM_KNOWLEDGE_API_BASE", "http://127.0.0.1:8010"),
+    )
     parser.add_argument("--corpus", type=Path, required=True)
     parser.add_argument("--query", action="append", dest="queries", required=True)
     parser.add_argument("--database", type=Path)

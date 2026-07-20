@@ -25,19 +25,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip build
       - run: python -m build
-      - shell: bash
+      - name: Install built wheel with proxy dependencies
+        shell: bash
         run: |
-          python -m venv rc1-venv
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            rc1-venv/Scripts/python -m pip install dist/*.whl
-            rc1-venv/Scripts/python -c "import rlm_proxy; import rlm_proxy.memory_gateway; import rlm_proxy.control_plane"
-            rc1-venv/Scripts/rlm-proxy --help
-            rc1-venv/Scripts/rlm-memory --help
-            rc1-venv/Scripts/rlm-control --help
-          else
-            rc1-venv/bin/python -m pip install dist/*.whl
-            rc1-venv/bin/python -c "import rlm_proxy; import rlm_proxy.memory_gateway; import rlm_proxy.control_plane"
-            rc1-venv/bin/rlm-proxy --help
-            rc1-venv/bin/rlm-memory --help
-            rc1-venv/bin/rlm-control --help
-          fi
+          wheel=$(python -c 'import glob; print(glob.glob("dist/*.whl")[0])')
+          python -m pip install --force-reinstall "${wheel}[proxy]"
+      - name: Verify installed modules and commands outside the checkout
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          python -c "import rlm_proxy; import rlm_proxy.memory_gateway; import rlm_proxy.control_plane"
+          rlm-proxy --help
+          rlm-memory --help
+          rlm-control --help

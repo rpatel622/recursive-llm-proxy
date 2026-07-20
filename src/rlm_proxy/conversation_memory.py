@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from threading import RLock
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 _SCHEMA_VERSION = 1
 
