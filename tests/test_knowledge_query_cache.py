@@ -48,7 +48,9 @@ def test_mutation_invalidates_cache() -> None:
 
 def test_lru_limit_evicts_oldest_entry() -> None:
     client = FakeClient()
-    cached = CachedKnowledgeApiClient(client, maximum_entries=1, ttl_seconds=60.0, clock=lambda: 1.0)
+    cached = CachedKnowledgeApiClient(
+        client, maximum_entries=1, ttl_seconds=60.0, clock=lambda: 1.0
+    )
     cached.search("a")
     cached.search("b")
     cached.search("a")

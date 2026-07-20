@@ -103,9 +103,11 @@ class SlotRegistry:
 
     def version(self) -> int:
         with self._lock:
-            row = self._require_connection().execute(
-                "SELECT catalog_version FROM catalog_meta WHERE singleton = 1"
-            ).fetchone()
+            row = (
+                self._require_connection()
+                .execute("SELECT catalog_version FROM catalog_meta WHERE singleton = 1")
+                .fetchone()
+            )
             return int(row[0]) if row else 0
 
     def snapshot(self) -> SlotCatalog:

@@ -32,9 +32,7 @@ def _client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     return TestClient(create_app())
 
 
-def test_append_turn_returns_new_version(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_append_turn_returns_new_version(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     client = _client(tmp_path, monkeypatch)
     response = client.post(
         "/v1/rlm/slots/engineering/workstreams/deployment/turns",
@@ -48,9 +46,7 @@ def test_append_turn_returns_new_version(
     assert response.headers["etag"] == '"2"'
 
 
-def test_append_turn_rejects_stale_version(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_append_turn_rejects_stale_version(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     client = _client(tmp_path, monkeypatch)
     response = client.post(
         "/v1/rlm/slots/engineering/workstreams/deployment/turns",
