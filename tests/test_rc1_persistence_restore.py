@@ -30,9 +30,8 @@ def test_memory_database_survives_online_backup_restore(tmp_path: Path) -> None:
     snapshot = store.append("conversation", "user", "hello", snapshot.revision)
     store.append("conversation", "assistant", "world", snapshot.revision)
 
-    with sqlite3.connect(source) as source_connection:
-        with sqlite3.connect(restored_path) as restored_connection:
-            source_connection.backup(restored_connection)
+    with sqlite3.connect(restored_path) as restored_connection:
+        store._connection.backup(restored_connection)
 
     restored = ConversationMemoryStore(str(restored_path)).get("conversation")
 
@@ -47,5 +46,8 @@ def test_memory_rejects_unsupported_schema(tmp_path: Path) -> None:
         connection.execute("UPDATE memory_meta SET schema_version = 999 WHERE singleton = 1")
         connection.commit()
 
-    with pytest.raises(RuntimeError, match="unsupported conversation memory schema version"):
+    with pytest.raises(
+        RuntimeError,
+        match="unsupported conversation memory schema version",
+    ):
         ConversationMemoryStore(str(path))
